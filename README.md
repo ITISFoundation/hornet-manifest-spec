@@ -125,7 +125,7 @@ Here's a minimal example of a valid `.hornet/sim_manifest.json`:
   "mappings": [
     {
       "component_ref": {
-        "cad_manifest_path": "./.hornet/cad_manifest.json",
+        "cad_manifest_path": ".hornet/cad_manifest.json",
         "component_id": "SimplePart"
       },
       "material": {

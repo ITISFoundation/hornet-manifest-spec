@@ -3,7 +3,7 @@
   "mappings": [
     {
       "component_ref": {
-        "cad_manifest_path": "./.hornet/cad_manifest.json",
+        "cad_manifest_path": ".hornet/cad_manifest.json",
         "component_id": "SimplePart"
       },
       "material": {
