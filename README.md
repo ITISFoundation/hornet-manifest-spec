@@ -173,27 +173,33 @@ VS Code (with built‑in JSON support) will:
 
 #### 2. ✅ Using GitHub Actions
 
-Add this workflow to [`.github/workflows/validate-manifest.yml`](.github/workflows/validate-manifest.yml) to your repo:
+Add this workflow to `.github/workflows/validate-manifest.yml` to your repo:
 
 ```yaml
-- name: Extract schema URL
-  id: get_schema
-  runs: |
-    echo "::set-output name=url::$(jq -r .\"$schema\" .hornet/cad_manifest.json)"
+- name: Checkout code
+  uses: actions/checkout@v3
 
-- name: Validate manifest
-  uses: sourcemeta/jsonschema@v9
-  with:
-    command: validate
-    args: >
-      --schema ${{ steps.get_schema.outputs.url }}
-      --instance .hornet/cad_manifest.json
+- name: Install JSON Schema CLI
+  uses: sourcemeta/jsonschema@v11.0.0
+
+- name: Validate CAD manifest
+  run: |
+    schema_url=$(jq -r '.["$schema"]' .hornet/cad_manifest.json)
+    curl -o cad_schema.json "$schema_url"
+    jsonschema validate cad_schema.json .hornet/cad_manifest.json --json
+
+- name: Validate Sim manifest
+  run: |
+    schema_url=$(jq -r '.["$schema"]' .hornet/sim_manifest.json)
+    curl -o sim_schema.json "$schema_url"
+    jsonschema validate sim_schema.json .hornet/sim_manifest.json --json
 ```
 
 This uses:
 
-* 🐳 `jq` to read the `$schema` field
-* ⚖️ `sourcemeta/jsonschema` to validate without custom scripts
+* � `curl` to download the schema files locally
+* ⚖️ `sourcemeta/jsonschema@v11.0.0` with local schema files and the correct command syntax
+* 📝 Validates both CAD and Sim manifests
 
 
 #### 3. ✅ As a Pre-commit Hook
