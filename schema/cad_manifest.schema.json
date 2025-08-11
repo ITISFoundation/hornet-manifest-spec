@@ -20,28 +20,25 @@
             "description": "Top-level components in this CAD project.",
             "minItems": 1,
             "items": {
-                "$ref": "#/$defs/component"
+                "discriminator": {
+                    "propertyName": "type",
+                    "mapping": {
+                        "assembly": "#/$defs/assembly",
+                        "part": "#/$defs/part"
+                    }
+                },
+                "oneOf": [
+                    {
+                        "$ref": "#/$defs/assembly"
+                    },
+                    {
+                        "$ref": "#/$defs/part"
+                    }
+                ]
             }
         }
     },
     "$defs": {
-        "component": {
-            "discriminator": {
-                "propertyName": "type",
-                "mapping": {
-                    "assembly": "#/$defs/assembly",
-                    "part": "#/$defs/part"
-                }
-            },
-            "oneOf": [
-                {
-                    "$ref": "#/$defs/assembly"
-                },
-                {
-                    "$ref": "#/$defs/part"
-                }
-            ]
-        },
         "assembly": {
             "type": "object",
             "required": [
@@ -89,7 +86,21 @@
                 "components": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/$defs/component"
+                        "discriminator": {
+                            "propertyName": "type",
+                            "mapping": {
+                                "assembly": "#/$defs/assembly",
+                                "part": "#/$defs/part"
+                            }
+                        },
+                        "oneOf": [
+                            {
+                                "$ref": "#/$defs/assembly"
+                            },
+                            {
+                                "$ref": "#/$defs/part"
+                            }
+                        ]
                     }
                 }
             }
@@ -97,13 +108,13 @@
         "part": {
             "type": "object",
             "required": [
-                "name",
+                "id",
                 "type",
                 "description",
                 "files"
             ],
             "properties": {
-                "name": {
+                "id": {
                     "type": "string"
                 },
                 "type": {

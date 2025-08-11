@@ -1,31 +1,74 @@
-name: Validate CAD Manifest
-
+name: Validate CAD and Sim Manifests
 on:
   push:
     paths:
-        - 'examples/cad_manifest.json'
+      - 'examples/**cad_manifest.json'
+      - 'schema/cad_manifest.schema.json'
+      - 'examples/**sim_manifest.json'
+      - 'schema/sim_manifest.schema.json'
   pull_request:
     paths:
-        - 'examples/cad_manifest.json'
+      - 'examples/**cad_manifest.json'
+      - 'schema/cad_manifest.schema.json'
+      - 'examples/**sim_manifest.json'
+      - 'schema/sim_manifest.schema.json'
 
 jobs:
-  validate:
+  validate-schemas:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+      - name: Install JSON Schema CLI
+        uses: sourcemeta/jsonschema@v11.0.0
+      - name: Validate CAD Schema
+        run: jsonschema metaschema schema/cad_manifest.schema.json --json
+      - name: Validate Sim Schema
+        run: jsonschema metaschema schema/sim_manifest.schema.json --json
 
-      - name: Extract schema URL using jq
-        id: get_schema
-        uses: sergeysova/jq-action@v2
-        with:
-          cmd: "jq -r '.\"$schema\"' examples/cad_manifest.json"
+  discover-cad:
+    needs: validate-schemas
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.find.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - id: find
+        run: |
+          echo "matrix=$(find examples -type f -name '*cad_manifest.json' | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
 
-      - name: Validate manifest against JSON Schema
-        uses: sourcemeta/jsonschema@v9.2.1
-        with:
-          command: validate
-          args: >
-            --schema ${{ steps.get_schema.outputs.value }}
-            --instance examples/cad_manifest.json
+  discover-sim:
+    needs: validate-schemas
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.find.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - id: find
+        run: |
+          echo "matrix=$(find examples -type f -name '*sim_manifest.json' | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
+
+  validate-cad:
+    needs: discover-cad
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        file: ${{ fromJson(needs.discover-cad.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install JSON Schema CLI
+        uses: sourcemeta/jsonschema@v11.0.0
+      - name: Validate CAD Manifest
+        run: jsonschema validate schema/cad_manifest.schema.json "${{ matrix.file }}" --json
+
+  validate-sim:
+    needs: discover-sim
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        file: ${{ fromJson(needs.discover-sim.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install JSON Schema CLI
+        uses: sourcemeta/jsonschema@v11.0.0
+      - name: Validate Sim Manifest
+        run: jsonschema validate schema/sim_manifest.schema.json "${{ matrix.file }}" --json

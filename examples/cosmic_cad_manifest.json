@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ITISFoundation/hornet-manifest-spec/refs/heads/main/schema/cad_manifest.schema.json",
+  "repository": "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+  "components": [
+    {
+      "id": "EPI MES Cable",
+      "type": "assembly",
+      "description": "Assembly of epimysial disk electrode",
+      "files": [
+        { "path": "Mechanical Design CAD Files/Epimysial MES Electrode Cable/STEP Files/NNP-DWG-145-003-000 Electrode Cable, EPI, MES.STEP", "type": "step_export" }
+      ],
+      "components": [
+        {
+          "id": "EPI Disk",
+          "type": "part",
+          "description": "Disk contact of epimysial electrode",
+          "files": [
+            { "path": "Mechanical Design CAD Files/Epimysial MES Electrode Cable/STEP Files/NNP-DWG-140-014-000 Electrode, EPI, Disk.STEP", "type": "step_export" }
+          ]
+        }
+      ]
+    }
+  ]
+}

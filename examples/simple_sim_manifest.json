@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ITISFoundation/hornet-manifest-spec/refs/heads/main/schema/sim_manifest.schema.json",
+  "mappings": [
+    {
+      "component_ref": {
+        "cad_manifest_path": "./.hornet/cad_manifest.json",
+        "component_id": "SimplePart"
+      },
+      "material": {
+        "name": "Titanium"
+      },
+      "boundary_conditions": ["insulating"],
+      "tags": ["biocompatible"]
+    }
+  ]
+}

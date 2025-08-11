@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ITISFoundation/hornet-manifest-spec/refs/heads/main/schema/cad_manifest.schema.json",
+  "repository": "https://github.com/myorg/cad-project",
+  "components": [
+    {
+      "id": "SimpleAssembly",
+      "type": "assembly",
+      "description": "A basic assembly with one part",
+      "files": [
+        { "path": "assemblies/SimpleAssembly.SLDASM", "type": "solidworks_assembly" }
+      ],
+      "components": [
+        {
+          "id": "SimplePart",
+          "type": "part",
+          "description": "A basic part component",
+          "files": [
+            { "path": "parts/SimplePart.SLDPRT", "type": "solidworks_part" },
+            { "path": "exports/SimplePart.step", "type": "step_export" }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ITISFoundation/hornet-manifest-spec/refs/heads/main/schema/sim_manifest.schema.json",
+  "mappings": [
+    {
+      "component_ref": {
+        "cad_manifest_path": "./cad_manifest.json",
+        "component_id": "EPI Disk"
+      },
+      "material": {
+        "name": "Platinum - 10% Iridium"
+      },
+      "boundary_conditions": ["electrical_contact"],
+      "tags": ["biocompatible"]
+    }
+  ]
+}
