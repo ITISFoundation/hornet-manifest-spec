@@ -197,7 +197,7 @@ Add this workflow to `.github/workflows/validate-manifest.yml` to your repo:
 
 This uses:
 
-* � `curl` to download the schema files locally
+* 📥 `curl` to download the schema files locally
 * ⚖️ `sourcemeta/jsonschema@v11.0.0` with local schema files and the correct command syntax
 * 📝 Validates both CAD and Sim manifests
 
