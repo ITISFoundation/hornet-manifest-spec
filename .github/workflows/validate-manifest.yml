@@ -14,7 +14,19 @@ on:
       - 'schema/sim_manifest.schema.json'
 
 jobs:
+  validate-schemas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install JSON Schema CLI
+        uses: sourcemeta/jsonschema@v11.0.0
+      - name: Validate CAD Schema
+        run: jsonschema metaschema schema/cad_manifest.schema.json --json
+      - name: Validate Sim Schema
+        run: jsonschema metaschema schema/sim_manifest.schema.json --json
+
   discover-cad:
+    needs: validate-schemas
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.find.outputs.matrix }}
@@ -25,6 +37,7 @@ jobs:
           echo "matrix=$(find examples -type f -name '*cad_manifest.json' | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
 
   discover-sim:
+    needs: validate-schemas
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.find.outputs.matrix }}
