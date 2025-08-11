@@ -173,7 +173,7 @@ VS Code (with built‑in JSON support) will:
 
 #### 2. ✅ Using GitHub Actions
 
-Add this workflow to `.github/workflows/validate-manifest.yml` to your repo:
+Add these steps in `.github/workflows/validate-manifest.yml` to your repo:
 
 ```yaml
 - name: Checkout code
