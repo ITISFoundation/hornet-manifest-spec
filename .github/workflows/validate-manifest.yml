@@ -1,16 +1,20 @@
-name: Validate CAD Manifests
+name: Validate CAD and Sim Manifests
 on:
   push:
     paths:
       - 'examples/**cad_manifest.json'
       - 'schema/cad_manifest.schema.json'
+      - 'examples/**sim_manifest.json'
+      - 'schema/sim_manifest.schema.json'
   pull_request:
     paths:
       - 'examples/**cad_manifest.json'
       - 'schema/cad_manifest.schema.json'
+      - 'examples/**sim_manifest.json'
+      - 'schema/sim_manifest.schema.json'
 
 jobs:
-  discover:
+  discover-cad:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.find.outputs.matrix }}
@@ -20,15 +24,38 @@ jobs:
         run: |
           echo "matrix=$(find examples -type f -name '*cad_manifest.json' | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
 
-  validate:
-    needs: discover
+  discover-sim:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.find.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - id: find
+        run: |
+          echo "matrix=$(find examples -type f -name '*sim_manifest.json' | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
+
+  validate-cad:
+    needs: discover-cad
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        file: ${{ fromJson(needs.discover.outputs.matrix) }}
+        file: ${{ fromJson(needs.discover-cad.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v3
       - name: Install JSON Schema CLI
         uses: sourcemeta/jsonschema@v11.0.0
-      - name: Validate Manifest
+      - name: Validate CAD Manifest
         run: jsonschema validate schema/cad_manifest.schema.json "${{ matrix.file }}" --json
+
+  validate-sim:
+    needs: discover-sim
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        file: ${{ fromJson(needs.discover-sim.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install JSON Schema CLI
+        uses: sourcemeta/jsonschema@v11.0.0
+      - name: Validate Sim Manifest
+        run: jsonschema validate schema/sim_manifest.schema.json "${{ matrix.file }}" --json
