@@ -62,22 +62,21 @@ def find_hornet_manifests(repo_path: Path | str) -> tuple[Path | None, Path | No
     cad_manifest: Path | None = None
     sim_manifest: Path | None = None
 
+    def _check(target: Path):
+        if target.exists() and target.is_file():
+            return target
+        return None
+
     # First check .hornet/ directory
     hornet_dir = repo_dir / ".hornet"
     if hornet_dir.exists():
-        cad_path = hornet_dir / "cad_manifest.json"
-        sim_path = hornet_dir / "sim_manifest.json"
-
-        if cad_path.exists():
-            cad_manifest = cad_path
-        if sim_path.exists():
-            sim_manifest = sim_path
+        cad_manifest = _check(hornet_dir / "cad_manifest.json")
+        sim_manifest = _check(hornet_dir / "sim_manifest.json")
 
     # Fallback to root directory
     if not cad_manifest:
-        root_cad_path = repo_dir / "cad_manifest.json"
-        if root_cad_path.exists():
-            cad_manifest = root_cad_path
+        cad_manifest = _check(repo_dir / "cad_manifest.json")
+        sim_manifest = _check(repo_dir / "sim_manifest.json")
 
     return cad_manifest, sim_manifest
 
