@@ -7,7 +7,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, List, Literal, Union
 
-from pydantic import AnyUrl, BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, HttpUrl, RootModel
 
 #
 # CAD manifest
@@ -32,8 +32,18 @@ class Part(BaseModel):
     files: List[File]
 
 
-class Component(BaseModel):
-    __root__: Union[Assembly, Part] = Field(..., discriminator="type")
+class Assembly(BaseModel):
+    id: Annotated[
+        str, Field(description="Unique identifier for the component", min_length=1)
+    ]
+    type: Literal["assembly"]
+    description: str
+    files: list[File]
+    components: list["Component"]
+
+
+class Component(RootModel[Union[Assembly, Part]]):
+    root: Annotated[Union[Assembly, Part], Field(..., discriminator="type")]
 
 
 class HornetCadManifest(BaseModel):
@@ -44,21 +54,8 @@ class HornetCadManifest(BaseModel):
     ]
     components: Annotated[
         list[Component],
-        Field(description="Top-level components in this CAD project.", min_items=1),
+        Field(description="Top-level components in this CAD project.", min_length=1),
     ]
-
-
-class Assembly(BaseModel):
-    id: Annotated[
-        str, Field(description="Unique identifier for the component", min_length=1)
-    ]
-    type: Literal["assembly"]
-    description: str
-    files: list[File]
-    components: list[Component]
-
-
-Component.update_forward_refs()
 
 
 #

@@ -52,7 +52,7 @@ def test_clone_repository(tmp_path: Path, commit_hash: str):
 def test_walk_cad_manifest_components():
     """Test walking through CAD manifest components and validating with Pydantic model."""
     # Get the path to the test CAD manifest file
-    manifest_path = Path(__file__).parent / "examples" / "cad_manifest.json"
+    manifest_path = Path(__file__).parent.parent / "examples" / "cad_manifest.json"
 
     # Load the manifest JSON
     with manifest_path.open("r", encoding="utf-8") as f:
