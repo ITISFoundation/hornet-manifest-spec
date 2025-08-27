@@ -13,13 +13,11 @@ Usage examples:
 """
 
 import json
-import hashlib
 import logging
 import shutil
 import subprocess
 import sys
 import tempfile
-import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +34,7 @@ def load_metadata(metadata_path: Path | str) -> dict[str, Any]:
 
 
 def clone_repository(repo_url: str, commit_hash: str, target_dir: Path | str) -> Path:
+    """Clone repository with depth 1 and checkout specific commit."""
     target_path = Path(target_dir)
     target_path.mkdir(parents=True, exist_ok=True)
 
@@ -63,6 +62,53 @@ def clone_repository(repo_url: str, commit_hash: str, target_dir: Path | str) ->
     )
 
     return target_path
+
+
+def find_hornet_manifests(repo_path: Path | str) -> tuple[Path | None, Path | None]:
+    """Look for .hornet/cad_manifest.json and .hornet/sim_manifest.json."""
+    repo_dir = Path(repo_path)
+    assert repo_dir.is_dir()
+
+    cad_manifest: Path | None = None
+    sim_manifest: Path | None = None
+
+    # First check .hornet/ directory
+    hornet_dir = repo_dir / ".hornet"
+    if hornet_dir.exists():
+        cad_path = hornet_dir / "cad_manifest.json"
+        sim_path = hornet_dir / "sim_manifest.json"
+
+        if cad_path.exists():
+            cad_manifest = cad_path
+        if sim_path.exists():
+            sim_manifest = sim_path
+
+    # Fallback to root directory
+    if not cad_manifest:
+        root_cad_path = repo_dir / "cad_manifest.json"
+        if root_cad_path.exists():
+            cad_manifest = root_cad_path
+
+    return cad_manifest, sim_manifest
+
+
+def validate_manifest_schema(manifest_file: Path):
+    """Extract $schema URL from manifest file and validate using jsonschema."""
+    with manifest_file.open("r", encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    schema_url = manifest.get("$schema")
+    if not schema_url:
+        error_msg = f"No $schema field found in {manifest_file}"
+        raise FileNotFoundError(error_msg)
+
+    # Download schema
+    response = httpx.get(schema_url)
+    response.raise_for_status()
+    schema = response.json()
+
+    # Validate manifest against schema. Raises if not valid
+    jsonschema.validate(manifest, schema)
 
 
 class HornetManifestLoader:
@@ -115,90 +161,12 @@ class HornetManifestLoader:
             self._handle_error(error_msg)
             return ""
 
-    def verify_zip_file(self, zip_path: Path | str, expected_sha256: str) -> bool:
-        """Calculate SHA256 hash of ZIP file and compare with metadata hash."""
-        try:
-            zip_file = Path(zip_path)
-
-            if self.dry_run:
-                self._logger.info("[DRY RUN] Would verify SHA256 of %s", zip_file)
-                return True
-
-            sha256_hash = hashlib.sha256()
-            with zip_file.open("rb") as f:
-                for chunk in iter(lambda: f.read(4096), b""):
-                    sha256_hash.update(chunk)
-
-            calculated_hash = sha256_hash.hexdigest()
-            expected_hash = expected_sha256.replace(
-                "=", ""
-            )  # Remove base64 padding if present
-
-            if calculated_hash == expected_hash:
-                self._logger.info("ZIP file SHA256 verification successful")
-                return True
-            else:
-                error_msg = f"SHA256 mismatch for {zip_file}. Expected: {expected_hash}, Got: {calculated_hash}"
-                self._handle_error(error_msg)
-                return False
-
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Failed to verify ZIP file {zip_path}: {e}"
-            self._handle_error(error_msg)
-            return False
-
-    def extract_zip_file(self, zip_path: Path | str, extract_dir: Path | str) -> str:
-        """Extract ZIP file to directory."""
-        try:
-            zip_file = Path(zip_path)
-            extract_path = Path(extract_dir)
-
-            if self.dry_run:
-                self._logger.info(
-                    "[DRY RUN] Would extract %s to %s", zip_file, extract_path
-                )
-                return str(extract_path)
-
-            with zipfile.ZipFile(zip_file, "r") as zip_ref:
-                zip_ref.extractall(extract_path)
-
-            self._logger.info("Extracted ZIP file to %s", extract_path)
-            return str(extract_path)
-
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Failed to extract ZIP file {zip_path}: {e}"
-            self._handle_error(error_msg)
-            return ""
-
     def find_hornet_manifests(
         self, repo_path: Path | str
     ) -> tuple[Path | None, Path | None]:
         """Look for .hornet/cad_manifest.json and .hornet/sim_manifest.json."""
-        repo_dir = Path(repo_path)
-        cad_manifest: Path | None = None
-        sim_manifest: Path | None = None
 
-        # First check .hornet/ directory
-        hornet_dir = repo_dir / ".hornet"
-        if hornet_dir.exists():
-            cad_path = hornet_dir / "cad_manifest.json"
-            sim_path = hornet_dir / "sim_manifest.json"
-
-            if cad_path.exists():
-                cad_manifest = cad_path
-            if sim_path.exists():
-                sim_manifest = sim_path
-
-        # Fallback to root directory
-        if not cad_manifest:
-            root_cad_path = repo_dir / "cad_manifest.json"
-            if root_cad_path.exists():
-                cad_manifest = root_cad_path
-
-        if not sim_manifest:
-            root_sim_path = repo_dir / "sim_manifest.json"
-            if root_sim_path.exists():
-                sim_manifest = root_sim_path
+        cad_manifest, sim_manifest = find_hornet_manifests(repo_path)
 
         if cad_manifest:
             self._logger.info("Found CAD manifest: %s", cad_manifest)
@@ -213,37 +181,15 @@ class HornetManifestLoader:
     def validate_manifest_schema(self, manifest_path: Path | str) -> bool:
         """Extract $schema URL from manifest file and validate using jsonschema."""
         try:
-            manifest_file = Path(manifest_path)
-            with manifest_file.open("r", encoding="utf-8") as f:
-                manifest = json.load(f)
-
-            schema_url = manifest.get("$schema")
-            if not schema_url:
-                error_msg = f"No $schema field found in {manifest_file}"
-                self._handle_error(error_msg)
-                return False
-
-            if self.dry_run:
-                self._logger.info(
-                    "[DRY RUN] Would validate %s against %s", manifest_file, schema_url
-                )
-                return True
-
-            # Download schema
-            response = httpx.get(schema_url)
-            response.raise_for_status()
-            schema = response.json()
-
-            # Validate manifest against schema
-            jsonschema.validate(manifest, schema)
-            self._logger.info("Schema validation successful for %s", manifest_file)
+            validate_manifest_schema(Path(manifest_path))
+            self._logger.info("Schema validation successful for %s", manifest_path)
             return True
 
         except jsonschema.ValidationError as e:
             error_msg = f"Schema validation failed for {manifest_path}: {e.message}"
             self._handle_error(error_msg)
             return False
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to validate schema for {manifest_path}: {e}"
             self._handle_error(error_msg)
             return False
@@ -263,7 +209,7 @@ class HornetManifestLoader:
             components = manifest.get("components", [])
 
             def extract_files_from_component(
-                component: dict[str, any], path_prefix: str = ""
+                component: dict[str, Any], path_prefix: str = ""
             ) -> None:
                 """Recursively extract file paths from component tree."""
                 files = component.get("files", [])

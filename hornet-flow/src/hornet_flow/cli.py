@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 
-from .main import HornetManifestLoader
+from .service import HornetManifestLoader
 
 _logger = logging.getLogger(__name__)
 
