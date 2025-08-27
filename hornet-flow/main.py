@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#     "httpx",
-#     "jsonschema",
-# ]
-# ///
 """
 Hornet Manifest Loader
 
@@ -15,8 +7,8 @@ and loads CAD files according to the manifest specifications.
 
 Usage examples:
 
-    uv run hornet_manifest_loader.py --help
-    uv run hornet_manifest_loader.py ../examples/sample_metadata.json --work-dir /tmp/hornet_test --verbose
+    uv run hornet-flow/main.py --help
+    uv run hornet-flow/main.py ./examples/sample_metadata.json --work-dir /tmp/hornet_test --verbose
 
 """
 

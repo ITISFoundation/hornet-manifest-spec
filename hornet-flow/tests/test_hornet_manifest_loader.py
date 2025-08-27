@@ -14,7 +14,7 @@ import pytest
 from typing import Any
 from pytest_mock import MockerFixture
 
-from hornet_manifest_loader import HornetManifestLoader
+from main import HornetManifestLoader
 
 # Configure test logger
 _logger = logging.getLogger(__name__)
