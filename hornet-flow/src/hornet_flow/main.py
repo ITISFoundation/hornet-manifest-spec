@@ -27,6 +27,44 @@ import jsonschema
 import httpx
 
 
+def load_metadata(metadata_path: Path | str) -> dict[str, Any]:
+    """Load and parse the metadata JSON file from local path."""
+    metadata_file = Path(metadata_path)
+    with metadata_file.open("r", encoding="utf-8") as f:
+        metadata = json.load(f)
+    return metadata
+
+
+def clone_repository(repo_url: str, commit_hash: str, target_dir: Path | str) -> Path:
+    target_path = Path(target_dir)
+    target_path.mkdir(parents=True, exist_ok=True)
+
+    # Clone with depth 1
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            "--no-single-branch",
+            repo_url,
+            str(target_path),
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+    # Checkout specific commit
+    subprocess.run(
+        ["git", "checkout", commit_hash],
+        cwd=str(target_path),
+        check=True,
+        capture_output=True,
+    )
+
+    return target_path
+
+
 class HornetManifestLoader:
     """Main class for loading and processing hornet manifests."""
 
@@ -40,38 +78,36 @@ class HornetManifestLoader:
     def load_metadata(self, metadata_path: Path | str) -> dict[str, Any]:
         """Load and parse the metadata JSON file from local path."""
         try:
-            metadata_file = Path(metadata_path)
-            with metadata_file.open('r', encoding='utf-8') as f:
-                metadata = json.load(f)
-            self._logger.info("Loaded metadata from %s", metadata_file)
+            metadata = load_metadata(metadata_path)
+            self._logger.info("Loaded metadata from %s", metadata_path)
             return metadata
-        except Exception as e: #pylint: disable=W0718:broad-exception-caught
+        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to load metadata from {metadata_path}: {e}"
             self._handle_error(error_msg)
             return {}
 
-    def clone_repository(self, repo_url: str, commit_hash: str, target_dir: Path | str) -> str:
+    def clone_repository(
+        self, repo_url: str, commit_hash: str, target_dir: Path | str
+    ) -> str:
         """Clone repository with depth 1 and checkout specific commit."""
         try:
             target_path = Path(target_dir)
             repo_path = target_path / "repo"
 
             if self.dry_run:
-                self._logger.info("[DRY RUN] Would clone %s at commit %s to %s", repo_url, commit_hash, repo_path)
+                self._logger.info(
+                    "[DRY RUN] Would clone %s at commit %s to %s",
+                    repo_url,
+                    commit_hash,
+                    repo_path,
+                )
                 return str(repo_path)
 
-            # Clone with depth 1
-            subprocess.run([
-                "git", "clone", "--depth", "1",
-                "--no-single-branch", repo_url, str(repo_path)
-            ], check=True, capture_output=True)
+            clone_repository(repo_url, commit_hash, repo_path)
 
-            # Checkout specific commit
-            subprocess.run([
-                "git", "checkout", commit_hash
-            ], cwd=str(repo_path), check=True, capture_output=True)
-
-            self._logger.info("Cloned repository %s at commit %s", repo_url, commit_hash)
+            self._logger.info(
+                "Cloned repository %s at commit %s", repo_url, commit_hash
+            )
             return str(repo_path)
 
         except subprocess.CalledProcessError as e:
@@ -94,7 +130,9 @@ class HornetManifestLoader:
                     sha256_hash.update(chunk)
 
             calculated_hash = sha256_hash.hexdigest()
-            expected_hash = expected_sha256.replace("=", "")  # Remove base64 padding if present
+            expected_hash = expected_sha256.replace(
+                "=", ""
+            )  # Remove base64 padding if present
 
             if calculated_hash == expected_hash:
                 self._logger.info("ZIP file SHA256 verification successful")
@@ -104,7 +142,7 @@ class HornetManifestLoader:
                 self._handle_error(error_msg)
                 return False
 
-        except Exception as e: #pylint: disable=W0718:broad-exception-caught
+        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to verify ZIP file {zip_path}: {e}"
             self._handle_error(error_msg)
             return False
@@ -116,21 +154,25 @@ class HornetManifestLoader:
             extract_path = Path(extract_dir)
 
             if self.dry_run:
-                self._logger.info("[DRY RUN] Would extract %s to %s", zip_file, extract_path)
+                self._logger.info(
+                    "[DRY RUN] Would extract %s to %s", zip_file, extract_path
+                )
                 return str(extract_path)
 
-            with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+            with zipfile.ZipFile(zip_file, "r") as zip_ref:
                 zip_ref.extractall(extract_path)
 
             self._logger.info("Extracted ZIP file to %s", extract_path)
             return str(extract_path)
 
-        except Exception as e: #pylint: disable=W0718:broad-exception-caught
+        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to extract ZIP file {zip_path}: {e}"
             self._handle_error(error_msg)
             return ""
 
-    def find_hornet_manifests(self, repo_path: Path | str) -> tuple[Path | None, Path | None]:
+    def find_hornet_manifests(
+        self, repo_path: Path | str
+    ) -> tuple[Path | None, Path | None]:
         """Look for .hornet/cad_manifest.json and .hornet/sim_manifest.json."""
         repo_dir = Path(repo_path)
         cad_manifest: Path | None = None
@@ -172,17 +214,19 @@ class HornetManifestLoader:
         """Extract $schema URL from manifest file and validate using jsonschema."""
         try:
             manifest_file = Path(manifest_path)
-            with manifest_file.open('r', encoding='utf-8') as f:
+            with manifest_file.open("r", encoding="utf-8") as f:
                 manifest = json.load(f)
 
-            schema_url = manifest.get('$schema')
+            schema_url = manifest.get("$schema")
             if not schema_url:
                 error_msg = f"No $schema field found in {manifest_file}"
                 self._handle_error(error_msg)
                 return False
 
             if self.dry_run:
-                self._logger.info("[DRY RUN] Would validate %s against %s", manifest_file, schema_url)
+                self._logger.info(
+                    "[DRY RUN] Would validate %s against %s", manifest_file, schema_url
+                )
                 return True
 
             # Download schema
@@ -204,23 +248,27 @@ class HornetManifestLoader:
             self._handle_error(error_msg)
             return False
 
-    def validate_cad_files_exist(self, cad_manifest_path: Path | str, repo_path: Path | str) -> list[str]:
+    def validate_cad_files_exist(
+        self, cad_manifest_path: Path | str, repo_path: Path | str
+    ) -> list[str]:
         """Parse CAD manifest JSON tree and verify referenced files exist."""
         try:
             manifest_file = Path(cad_manifest_path)
             repo_dir = Path(repo_path)
 
-            with manifest_file.open('r', encoding="utf-8") as f:
+            with manifest_file.open("r", encoding="utf-8") as f:
                 manifest = json.load(f)
 
             valid_files: list[str] = []
-            components = manifest.get('components', [])
+            components = manifest.get("components", [])
 
-            def extract_files_from_component(component: dict[str, any], path_prefix: str = "") -> None:
+            def extract_files_from_component(
+                component: dict[str, any], path_prefix: str = ""
+            ) -> None:
                 """Recursively extract file paths from component tree."""
-                files = component.get('files', [])
+                files = component.get("files", [])
                 for file_info in files:
-                    file_path = file_info.get('path', '')
+                    file_path = file_info.get("path", "")
                     full_path = repo_dir / file_path
 
                     if full_path.exists():
@@ -231,7 +279,7 @@ class HornetManifestLoader:
                         self._handle_error(error_msg)
 
                 # Recursively process sub-components
-                sub_components = component.get('components', [])
+                sub_components = component.get("components", [])
                 for sub_component in sub_components:
                     extract_files_from_component(sub_component, path_prefix)
 
@@ -260,20 +308,24 @@ class HornetManifestLoader:
             repo_dir = Path(repo_path)
             if repo_dir.exists():
                 if self.dry_run:
-                    self._logger.info("[DRY RUN] Would cleanup repository at %s", repo_dir)
+                    self._logger.info(
+                        "[DRY RUN] Would cleanup repository at %s", repo_dir
+                    )
                 else:
                     shutil.rmtree(repo_dir)
                     self._logger.info("Cleaned up repository at %s", repo_dir)
         except Exception as e:
             self._handle_error(f"Failed to cleanup repository {repo_path}: {e}")
 
-    def process_hornet_manifest(self, metadata_path: Path | str, work_dir: Path | str, cleanup: bool = False) -> dict[str, Any]:
+    def process_hornet_manifest(
+        self, metadata_path: Path | str, work_dir: Path | str, cleanup: bool = False
+    ) -> dict[str, Any]:
         """Main orchestration function that calls all steps in sequence."""
         results: dict[str, Any] = {
-            'success': False,
-            'errors': [],
-            'warnings': [],
-            'processed_files': []
+            "success": False,
+            "errors": [],
+            "warnings": [],
+            "processed_files": [],
         }
 
         try:
@@ -283,9 +335,9 @@ class HornetManifestLoader:
                 return results
 
             # Step 2: Extract release info
-            release = metadata.get('release', {})
-            repo_url = release.get('url', '')
-            commit_hash = release.get('marker', '')
+            release = metadata.get("release", {})
+            repo_url = release.get("url", "")
+            commit_hash = release.get("marker", "")
 
             if not repo_url or not commit_hash:
                 self._handle_error("Missing repository URL or commit hash in metadata")
@@ -300,7 +352,7 @@ class HornetManifestLoader:
                 repo_path = self.clone_repository(repo_url, commit_hash, temp_path)
                 if not repo_path:
                     return results
-               
+
                 # Step 2: Find hornet manifests (check both repo and extracted content)
                 cad_manifest, sim_manifest = self.find_hornet_manifests(repo_path)
 
@@ -318,21 +370,21 @@ class HornetManifestLoader:
                     valid_files = self.validate_cad_files_exist(cad_manifest, repo_path)
                     for file_path in valid_files:
                         self.load_cad_file(file_path)
-                        results['processed_files'].append(file_path)
+                        results["processed_files"].append(file_path)
 
                 # Step 5: Cleanup if requested
                 if cleanup:
                     self.cleanup_repository(repo_path)
 
-            results['success'] = len(self.errors) == 0 or not self.fail_fast
-            results['errors'] = self.errors
-            results['warnings'] = self.warnings
+            results["success"] = len(self.errors) == 0 or not self.fail_fast
+            results["errors"] = self.errors
+            results["warnings"] = self.warnings
 
             return results
 
-        except Exception as e: #pylint: disable=W0718:broad-exception-caught
+        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             self._handle_error(f"Unexpected error during processing: {e}")
-            results['errors'] = self.errors
+            results["errors"] = self.errors
             return results
 
     def _handle_error(self, error_msg: str) -> None:
