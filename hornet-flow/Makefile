@@ -22,21 +22,8 @@ install-uv:
 # Test targets
 test:
 	@echo "Running all tests..."
-	uv run --with pytest --with pytest-mock pytest test_hornet_manifest_loader.py -v
+	uv run --with pytest --with pytest-mock pytest test.py -v
 
-test-unit:
-	@echo "Running unit tests only..."
-	uv run --with pytest --with pytest-mock pytest test_hornet_manifest_loader.py -v -k "not test_create_sample_manifest_and_validate"
-
-test-integration:
-	@echo "Running integration tests only..."
-	uv run --with pytest --with pytest-mock pytest test_hornet_manifest_loader.py -v -k "test_create_sample_manifest_and_validate"
-
-# Code quality
-lint:
-	@echo "Running code linting..."
-	uv run --with flake8 flake8 hornet_manifest_loader.py test_hornet_manifest_loader.py --max-line-length=100 --ignore=E501
-	uv run --with pylint pylint hornet_manifest_loader.py --disable=C0103,R0903,R0912,R0915
 
 # Dependencies
 install:

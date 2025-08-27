@@ -9,7 +9,19 @@ _logger = logging.getLogger(__name__)
 
 
 def main() -> None:
-    """CLI entry point."""
+    """
+    Hornet Manifest Flow
+
+    Loads metadata from a JSON file, clones a git repository,
+    verifies ZIP files, extracts them, finds and validates hornet manifests,
+    and loads CAD files according to the manifest specifications.
+
+    Usage
+        hornet-flow --help
+        hornet-flow ./examples/sample_metadata.json --work-dir /tmp/hornet_test --verbose
+    """
+
+
     parser = argparse.ArgumentParser(description="Load and process hornet manifests")
     parser.add_argument("metadata_path", help="Path to metadata JSON file")
     parser.add_argument(

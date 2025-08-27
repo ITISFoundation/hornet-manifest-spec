@@ -1,17 +1,3 @@
-"""
-Hornet Manifest Loader
-
-This script loads metadata from a JSON file, clones a git repository,
-verifies ZIP files, extracts them, finds and validates hornet manifests,
-and loads CAD files according to the manifest specifications.
-
-Usage examples:
-
-    uv run hornet-flow/main.py --help
-    uv run hornet-flow/main.py ./examples/sample_metadata.json --work-dir /tmp/hornet_test --verbose
-
-"""
-
 import json
 import logging
 import shutil
@@ -25,12 +11,16 @@ import jsonschema
 import httpx
 
 
+from .models import Metadata
+
+
 def load_metadata(metadata_path: Path | str) -> dict[str, Any]:
     """Load and parse the metadata JSON file from local path."""
     metadata_file = Path(metadata_path)
     with metadata_file.open("r", encoding="utf-8") as f:
         metadata = json.load(f)
-    return metadata
+
+    return Metadata.model_validate(metadata).model_dump(mode="json")
 
 
 def clone_repository(repo_url: str, commit_hash: str, target_dir: Path | str) -> Path:
