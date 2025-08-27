@@ -1,65 +1,61 @@
-.PHONY: help test test-unit test-integration lint clean install run-example
+.PHONY: help test test-unit test-integration lint clean install install-uv run-example
 
 # Default target
 help:
 	@echo "Available targets:"
+	@echo "  install-uv      - Install uv package manager"
 	@echo "  test            - Run all tests"
 	@echo "  test-unit       - Run unit tests only"
 	@echo "  test-integration- Run integration tests only"
 	@echo "  lint            - Run code linting"
 	@echo "  clean           - Clean up temporary files"
-	@echo "  install         - Install dependencies"
+	@echo "  install         - Install development dependencies"
 	@echo "  run-example     - Run loader with example metadata"
 	@echo "  run-dry         - Run loader in dry-run mode"
+
+# Install uv
+install-uv:
+	@echo "Installing uv..."
+	@curl -LsSf https://astral.sh/uv/install.sh | sh
+	@echo "✓ uv installed. You may need to restart your shell or run 'source ~/.bashrc'"
 
 # Test targets
 test:
 	@echo "Running all tests..."
-	python -m pytest test_hornet_manifest_loader.py -v
+	uv run --with pytest --with pytest-mock pytest test_hornet_manifest_loader.py -v
 
 test-unit:
 	@echo "Running unit tests only..."
-	python -m pytest test_hornet_manifest_loader.py -v -k "not test_create_sample_manifest_and_validate"
+	uv run --with pytest --with pytest-mock pytest test_hornet_manifest_loader.py -v -k "not test_create_sample_manifest_and_validate"
 
 test-integration:
 	@echo "Running integration tests only..."
-	python -m pytest test_hornet_manifest_loader.py -v -k "test_create_sample_manifest_and_validate"
+	uv run --with pytest --with pytest-mock pytest test_hornet_manifest_loader.py -v -k "test_create_sample_manifest_and_validate"
 
 # Code quality
 lint:
 	@echo "Running code linting..."
-	python -m flake8 hornet_manifest_loader.py test_hornet_manifest_loader.py --max-line-length=100 --ignore=E501
-	python -m pylint hornet_manifest_loader.py --disable=C0103,R0903,R0912,R0915
+	uv run --with flake8 flake8 hornet_manifest_loader.py test_hornet_manifest_loader.py --max-line-length=100 --ignore=E501
+	uv run --with pylint pylint hornet_manifest_loader.py --disable=C0103,R0903,R0912,R0915
 
 # Dependencies
 install:
-	@echo "Installing dependencies..."
-	pip install jsonschema requests flake8 pylint pytest pytest-mock
+	@echo "Installing development dependencies..."
+	@echo "Note: Runtime dependencies are handled by inline script metadata in hornet_manifest_loader.py"
+	@echo "Development tools will be installed as needed via uv run --with"
 
 # Example runs
 run-example:
 	@echo "Running loader with example metadata..."
-	@if [ -f "../examples/sample_metadata.json" ]; then \
-		python hornet_manifest_loader.py ../examples/sample_metadata.json --work-dir /tmp/hornet_test --verbose; \
-	else \
-		echo "Error: No example metadata file found. Create ../examples/sample_metadata.json first."; \
-	fi
+	uv run hornet_manifest_loader.py ../examples/sample_metadata.json --work-dir /tmp/hornet_test --verbose
 
 run-dry:
 	@echo "Running loader in dry-run mode..."
-	@if [ -f "../examples/sample_metadata.json" ]; then \
-		python hornet_manifest_loader.py ../examples/sample_metadata.json --dry-run --work-dir /tmp/hornet_test --verbose; \
-	else \
-		echo "Error: No example metadata file found. Create ../examples/sample_metadata.json first."; \
-	fi
+	uv run hornet_manifest_loader.py ../examples/sample_metadata.json --dry-run --work-dir /tmp/hornet_test --verbose
 
 run-quiet:
 	@echo "Running loader in quiet mode..."
-	@if [ -f "../examples/sample_metadata.json" ]; then \
-		python hornet_manifest_loader.py ../examples/sample_metadata.json --work-dir /tmp/hornet_test --quiet; \
-	else \
-		echo "Error: No example metadata file found. Create ../examples/sample_metadata.json first."; \
-	fi
+	uv run hornet_manifest_loader.py ../examples/sample_metadata.json --work-dir /tmp/hornet_test --quiet
 
 # Utility targets
 clean:
@@ -71,53 +67,24 @@ clean:
 
 # Development helpers
 check-deps:
-	@echo "Checking dependencies..."
-	@python -c "import jsonschema, requests, pytest; print('✓ All dependencies available')" || \
-		(echo "✗ Missing dependencies. Run 'make install'"; exit 1)
+	@echo "Checking if uv is available..."
+	@command -v uv >/dev/null 2>&1 || (echo "✗ uv not found. Run 'make install-uv'"; exit 1)
+	@echo "✓ uv is available"
 
 validate-code:
 	@echo "Validating Python syntax..."
-	python -m py_compile hornet_manifest_loader.py
-	python -m py_compile test_hornet_manifest_loader.py
+	uv run -c "import py_compile; py_compile.compile('hornet_manifest_loader.py', doraise=True)"
+	uv run -c "import py_compile; py_compile.compile('test_hornet_manifest_loader.py', doraise=True)"
 	@echo "✓ Code syntax is valid"
 
-# Create example metadata for testing
-create-example:
-	@echo "Creating example metadata file..."
-	@mkdir -p ../examples
-	@cat > ../examples/sample_metadata.json << 'EOF'
-{
-    "datePublished": "2025-01-24",
-    "pennsieveDatasetId": 422,
-    "version": 1,
-    "name": "Example/hornet-test",
-    "description": "Example repository for testing hornet manifest loader",
-    "files": [
-        {
-            "name": "test.zip",
-            "path": "assets/test.zip",
-            "size": 1000,
-            "fileType": "ZIP",
-            "sha256": "abc123def456"
-        }
-    ],
-    "release": {
-        "origin": "GitHub",
-        "url": "https://github.com/ITISFoundation/hornet-manifest-spec",
-        "label": "1.0.0",
-        "marker": "main"
-    }
-}
-EOF
-	@echo "✓ Created ../examples/sample_metadata.json"
 
 # Test with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	python -m pytest test_hornet_manifest_loader.py --cov=hornet_manifest_loader --cov-report=html --cov-report=term
+	uv run --with pytest --with pytest-cov --with pytest-mock pytest test_hornet_manifest_loader.py --cov=hornet_manifest_loader --cov-report=html --cov-report=term
 
 # Full development workflow
-dev-setup: install validate-code test
+dev-setup: check-deps validate-code test
 	@echo "✓ Development setup complete"
 
 # CI-like workflow

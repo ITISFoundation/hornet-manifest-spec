@@ -3,12 +3,6 @@
 # pylint: disable=unused-argument
 # pylint: disable=unused-variable
 # pylint: disable=too-many-arguments
-"""
-Test suite for the Hornet Manifest Loader
-
-This module contains comprehensive tests for all functionality of the
-hornet_manifest_loader module using pytest.
-"""
 
 import json
 import logging

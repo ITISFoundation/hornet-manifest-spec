@@ -1,10 +1,23 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "httpx",
+#     "jsonschema",
+# ]
+# ///
 """
 Hornet Manifest Loader
 
 This script loads metadata from a JSON file, clones a git repository,
 verifies ZIP files, extracts them, finds and validates hornet manifests,
 and loads CAD files according to the manifest specifications.
+
+Usage examples:
+
+    uv run hornet_manifest_loader.py --help
+    uv run hornet_manifest_loader.py ../examples/sample_metadata.json --work-dir /tmp/hornet_test --verbose
+
 """
 
 import argparse
@@ -20,7 +33,7 @@ from pathlib import Path
 from typing import Any
 
 import jsonschema
-import requests
+import httpx
 
 # Configure module logger
 _logger = logging.getLogger(__name__)
@@ -44,7 +57,7 @@ class HornetManifestLoader:
                 metadata = json.load(f)
             self._logger.info("Loaded metadata from %s", metadata_file)
             return metadata
-        except Exception as e:
+        except Exception as e: #pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to load metadata from {metadata_path}: {e}"
             self._handle_error(error_msg)
             return {}
@@ -103,7 +116,7 @@ class HornetManifestLoader:
                 self._handle_error(error_msg)
                 return False
                 
-        except Exception as e:
+        except Exception as e: #pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to verify ZIP file {zip_path}: {e}"
             self._handle_error(error_msg)
             return False
@@ -124,7 +137,7 @@ class HornetManifestLoader:
             self._logger.info("Extracted ZIP file to %s", extract_path)
             return str(extract_path)
             
-        except Exception as e:
+        except Exception as e: #pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to extract ZIP file {zip_path}: {e}"
             self._handle_error(error_msg)
             return ""
@@ -185,7 +198,7 @@ class HornetManifestLoader:
                 return True
             
             # Download schema
-            response = requests.get(schema_url)
+            response = httpx.get(schema_url)
             response.raise_for_status()
             schema = response.json()
             

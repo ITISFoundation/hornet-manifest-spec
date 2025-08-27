@@ -1,0 +1,22 @@
+{
+    "datePublished": "2025-01-24",
+    "pennsieveDatasetId": 422,
+    "version": 1,
+    "name": "Example/hornet-test",
+    "description": "Example repository for testing hornet manifest loader",
+    "files": [
+        {
+            "name": "test.zip",
+            "path": "assets/test.zip",
+            "size": 1000,
+            "fileType": "ZIP",
+            "sha256": "abc123def456"
+        }
+    ],
+    "release": {
+        "origin": "GitHub",
+        "url": "https://github.com/ITISFoundation/hornet-manifest-spec",
+        "label": "1.0.0",
+        "marker": "main"
+    }
+}
