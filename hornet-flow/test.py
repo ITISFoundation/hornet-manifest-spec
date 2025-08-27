@@ -6,10 +6,7 @@
 
 
 import pytest
-from typing import Any
-from pytest_mock import MockerFixture
 from pathlib import Path
-import tempfile
 
 from hornet_flow.service import load_metadata, clone_repository
 

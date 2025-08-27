@@ -99,6 +99,23 @@ def validate_manifest_schema(manifest_file: Path):
     # Validate manifest against schema. Raises if not valid
     jsonschema.validate(manifest, schema)
 
+def walk_manifest_components(manifest: dict[str, Any]):
+    """Recursively walk through manifest components and yield each component."""
+    components = manifest.get("components", [])
+
+    def _walk_component(component: dict[str, Any]):
+        """Recursively yield component and its sub-components."""
+        yield component
+
+        # Recursively process sub-components
+        sub_components = component.get("components", [])
+        for sub_component in sub_components:
+            yield from _walk_component(sub_component)
+
+    for component in components:
+        yield from _walk_component(component)
+
+
 
 class HornetManifestLoader:
     """Main class for loading and processing hornet manifests."""
@@ -195,12 +212,8 @@ class HornetManifestLoader:
                 manifest = json.load(f)
 
             valid_files: list[str] = []
-            components = manifest.get("components", [])
 
-            def extract_files_from_component(
-                component: dict[str, Any], path_prefix: str = ""
-            ) -> None:
-                """Recursively extract file paths from component tree."""
+            for component in walk_manifest_components(manifest):
                 files = component.get("files", [])
                 for file_info in files:
                     file_path = file_info.get("path", "")
@@ -212,14 +225,6 @@ class HornetManifestLoader:
                     else:
                         error_msg = f"Missing file referenced in manifest: {file_path}"
                         self._handle_error(error_msg)
-
-                # Recursively process sub-components
-                sub_components = component.get("components", [])
-                for sub_component in sub_components:
-                    extract_files_from_component(sub_component, path_prefix)
-
-            for component in components:
-                extract_files_from_component(component)
 
             self._logger.info("Validated %d CAD files", len(valid_files))
             return valid_files
