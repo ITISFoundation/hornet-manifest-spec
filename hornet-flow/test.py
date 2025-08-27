@@ -5,10 +5,12 @@
 # pylint: disable=unused-variable
 
 
+import json
 import pytest
 from pathlib import Path
 
-from hornet_flow.service import load_metadata, clone_repository
+from hornet_flow.models import HornetCadManifest
+from hornet_flow.service import clone_repository, load_metadata, walk_manifest_components
 
 
 def test_load_metadata_portal_device():
@@ -45,3 +47,43 @@ def test_clone_repository(tmp_path: Path, commit_hash: str):
         folder_path = repo_path / folder_name
         assert folder_path.exists(), f"Expected folder '{folder_name}' not found"
         assert folder_path.is_dir(), f"'{folder_name}' exists but is not a directory"
+
+
+def test_walk_cad_manifest_components():
+    """Test walking through CAD manifest components and validating with Pydantic model."""
+    # Get the path to the test CAD manifest file
+    manifest_path = Path(__file__).parent / "examples" / "cad_manifest.json"
+
+    # Load the manifest JSON
+    with manifest_path.open("r", encoding="utf-8") as f:
+        manifest_data = json.load(f)
+
+    # Validate the manifest structure using Pydantic model
+    cad_manifest = HornetCadManifest.model_validate(manifest_data)
+    assert cad_manifest is not None
+
+    # Walk through all components using the walk_manifest_components function
+    component_count = 0
+    file_count = 0
+
+    for component in walk_manifest_components(manifest_data):
+        component_count += 1
+
+        # Verify component has required fields
+        assert "id" in component
+        assert "type" in component
+        assert "description" in component
+        assert "files" in component
+
+        # Count files in this component
+        files = component.get("files", [])
+        file_count += len(files)
+
+        # Verify each file has required fields
+        for file_info in files:
+            assert "path" in file_info
+            assert "type" in file_info
+
+    # Verify we found components and files
+    assert component_count > 0, "Should find at least one component"
+    assert file_count > 0, "Should find at least one file"
