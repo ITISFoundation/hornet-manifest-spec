@@ -7,7 +7,7 @@ authors = [
     { name = "Pedro Crespo-Valero", email = "32402063+pcrespov@users.noreply.github.com" },
 ]
 requires-python = ">=3.11"
-dependencies = ["httpx", "jsonschema", "requests"]
+dependencies = ["httpx", "jsonschema"]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-mock"]
