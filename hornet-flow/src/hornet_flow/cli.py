@@ -47,8 +47,7 @@ def main() -> None:
     )
 
     _logger.info(
-        "%s\nProcessing %s\nFiles processed: %d\nErrors: %d\nWarnings: %d",
-        "=" * 50,
+        "Processing %s\n Files processed: %d\n Errors: %d\n Warnings: %d",
         "completed" if results["success"] else "failed",
         len(results["processed_files"]),
         len(results["errors"]),
@@ -56,13 +55,13 @@ def main() -> None:
     )
 
     if results["errors"]:
-        _logger.error("Errors:")
+        _logger.error("Errors: %d", len(results["errors"]))
         for error in results["errors"]:
-            _logger.error("  - %s", error)
+            _logger.error(" %s", error)
 
     if results["warnings"]:
-        _logger.warning("Warnings:")
+        _logger.warning("Warnings: %d", len(results["warnings"]))
         for warning in results["warnings"]:
-            _logger.warning("  - %s", warning)
+            _logger.warning(" %s", warning)
 
     sys.exit(os.EX_OK if results["success"] else os.EX_SOFTWARE)

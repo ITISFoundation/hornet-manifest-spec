@@ -291,50 +291,20 @@ class HornetManifestLoader:
                 self._handle_error("Missing repository URL or commit hash in metadata")
                 return results
 
-            # Step 3: Find ZIP file in metadata
-            zip_file_info = None
-            for file_info in metadata.get('files', []):
-                if file_info.get('fileType') == 'ZIP':
-                    zip_file_info = file_info
-                    break
-
-            if not zip_file_info:
-                self._handle_error("No ZIP file found in metadata")
-                return results
-
             # Create working directory
             work_path = Path(work_dir)
             with tempfile.TemporaryDirectory(dir=work_path) as temp_dir:
                 temp_path = Path(temp_dir)
 
-                # Step 4: Clone repository
+                # Step 1: Clone repository
                 repo_path = self.clone_repository(repo_url, commit_hash, temp_path)
                 if not repo_path:
                     return results
-
-                # Step 5: Verify ZIP file (assuming it's in the cloned repo)
-                zip_path = Path(repo_path) / zip_file_info['path']
-                if not zip_path.exists():
-                    self._handle_error(f"ZIP file not found at {zip_path}")
-                    return results
-
-                if not self.verify_zip_file(zip_path, zip_file_info['sha256']):
-                    return results
-
-                # Step 6: Extract ZIP file
-                extract_dir = temp_path / "extracted"
-                extract_dir.mkdir(exist_ok=True)
-                extracted_path = self.extract_zip_file(zip_path, extract_dir)
-                if not extracted_path:
-                    return results
-
-                # Step 7: Find hornet manifests (check both repo and extracted content)
+               
+                # Step 2: Find hornet manifests (check both repo and extracted content)
                 cad_manifest, sim_manifest = self.find_hornet_manifests(repo_path)
-                if not cad_manifest and not sim_manifest:
-                    # Try extracted content
-                    cad_manifest, sim_manifest = self.find_hornet_manifests(extracted_path)
 
-                # Step 8: Validate manifests against schemas
+                # Step 3: Validate manifests against schemas
                 if cad_manifest and not self.validate_manifest_schema(cad_manifest):
                     if self.fail_fast:
                         return results
@@ -343,14 +313,14 @@ class HornetManifestLoader:
                     if self.fail_fast:
                         return results
 
-                # Step 9: Validate and load CAD files
+                # Step 4: Validate and load CAD files
                 if cad_manifest:
                     valid_files = self.validate_cad_files_exist(cad_manifest, repo_path)
                     for file_path in valid_files:
                         self.load_cad_file(file_path)
                         results['processed_files'].append(file_path)
 
-                # Step 10: Cleanup if requested
+                # Step 5: Cleanup if requested
                 if cleanup:
                     self.cleanup_repository(repo_path)
 
@@ -360,7 +330,7 @@ class HornetManifestLoader:
 
             return results
 
-        except Exception as e:
+        except Exception as e: #pylint: disable=W0718:broad-exception-caught
             self._handle_error(f"Unexpected error during processing: {e}")
             results['errors'] = self.errors
             return results
