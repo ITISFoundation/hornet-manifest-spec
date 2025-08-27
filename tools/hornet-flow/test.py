@@ -10,7 +10,7 @@ import pytest
 from pathlib import Path
 
 from hornet_flow.models import HornetCadManifest
-from hornet_flow.service import clone_repository, load_metadata, walk_manifest_components, find_hornet_manifests
+from hornet_flow.service import clone_repository, load_metadata, resolve_component_file_path, walk_manifest_components, find_hornet_manifests
 
 
 def test_load_metadata_portal_device():
@@ -89,6 +89,27 @@ def test_walk_cad_manifest_components():
     assert file_count > 0, "Should find at least one file"
 
 
+def validate_manifest_files(manifest_path: Path, repo_path: Path) -> tuple[list[str], list[str]]:
+    with manifest_path.open("r", encoding="utf-8") as f:
+        manifest_data = json.load(f)
+
+    missing_files = []
+    existing_files = []
+
+    for component in walk_manifest_components(manifest_data):
+        files = component.get("files", [])
+        for file_info in files:
+            file_path = file_info.get("path", "")
+            if file_path:  # Only check non-empty paths                
+                full_path = resolve_component_file_path(manifest_path, file_path, repo_path)
+                if full_path.exists():
+                    existing_files.append(file_path)
+                else:
+                    missing_files.append(file_path)
+
+    return existing_files, missing_files
+
+
 def test_cosmiic_repository_manifest_validation(tmp_path: Path):
     """Test complete workflow with COSMIIC repository: clone, find manifests, validate files."""
     # Create metadata for COSMIIC repository
@@ -117,43 +138,10 @@ def test_cosmiic_repository_manifest_validation(tmp_path: Path):
     assert sim_manifest is not None, "SIM manifest should exist in COSMIIC repository"
 
     # Step 4: Validate CAD files exist
-    with cad_manifest.open("r", encoding="utf-8") as f:
-        cad_manifest_data = json.load(f)
-
-    cad_missing_files = []
-    cad_existing_files = []
-
-    for component in walk_manifest_components(cad_manifest_data):
-        files = component.get("files", [])
-        for file_info in files:
-            file_path = file_info.get("path", "")
-            if file_path:  # Only check non-empty paths
-                if file_path.startswith("."):
-                    full_path = cad_manifest.resolve().parent / file_path[1:]
-                else:
-                    full_path = repo_path / file_path
-                if full_path.exists():
-                    cad_existing_files.append(file_path)
-                else:
-                    cad_missing_files.append(file_path)
+    cad_existing_files, cad_missing_files = validate_manifest_files(cad_manifest, repo_path)
 
     # Step 5: Validate SIM files exist
-    with sim_manifest.open("r", encoding="utf-8") as f:
-        sim_manifest_data = json.load(f)
-
-    sim_missing_files = []
-    sim_existing_files = []
-
-    for component in walk_manifest_components(sim_manifest_data):
-        files = component.get("files", [])
-        for file_info in files:
-            file_path = file_info.get("path", "")
-            if file_path:  # Only check non-empty paths
-                full_path = repo_path / file_path
-                if full_path.exists():
-                    sim_existing_files.append(file_path)
-                else:
-                    sim_missing_files.append(file_path)
+    sim_existing_files, sim_missing_files = validate_manifest_files(sim_manifest, repo_path)
 
     # Report results
     print(f"CAD manifest: Found {len(cad_existing_files)} existing files, {len(cad_missing_files)} missing files")
