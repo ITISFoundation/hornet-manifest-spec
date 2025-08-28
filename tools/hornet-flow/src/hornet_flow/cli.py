@@ -33,10 +33,11 @@ class HornetManifestProcessor:
         """Load and parse the metadata JSON file from local path."""
         try:
             metadata = service.load_metadata(metadata_path)
-            console.print(f"[green]✓[/green] Loaded metadata from {metadata_path}")
+            _logger.info("Loaded metadata from %s", metadata_path)
             return metadata
         except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to load metadata from {metadata_path}: {e}"
+            _logger.error(error_msg)
             self._handle_error(error_msg)
             return {}
 
@@ -48,7 +49,7 @@ class HornetManifestProcessor:
             target_path = Path(target_dir)
             repo_path = target_path / "repo"
 
-            console.print(f"[blue]Cloning repository:[/blue] {repo_url}")
+            _logger.info("Cloning repository: %s", repo_url)
 
             with Progress(
                 SpinnerColumn(),
@@ -60,14 +61,13 @@ class HornetManifestProcessor:
                 service.clone_repository(repo_url, commit_hash, repo_path)
                 progress.update(task, description="Repository cloned successfully")
 
-            console.print(
-                f"[green]✓[/green] Successfully cloned repository at commit {commit_hash[:8]}"
-            )
+            _logger.info("Successfully cloned repository at commit %s", commit_hash[:8])
+
             return str(repo_path)
 
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to clone repository {repo_url}: {e}"
-            console.print(f"[red]✗ {error_msg}[/red]")
+            _logger.error(error_msg)
             self._handle_error(error_msg)
             return ""
 
@@ -79,12 +79,12 @@ class HornetManifestProcessor:
         cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
 
         if cad_manifest:
-            console.print(f"[green]✓[/green] Found CAD manifest: {cad_manifest}")
+            _logger.info("Found CAD manifest: %s", cad_manifest)
         if sim_manifest:
-            console.print(f"[green]✓[/green] Found SIM manifest: {sim_manifest}")
+            _logger.info("Found SIM manifest: %s", sim_manifest)
 
         if not cad_manifest and not sim_manifest:
-            console.print("[red]✗ No hornet manifest files found in repository[/red]")
+            _logger.error("No hornet manifest files found in repository")
             self._handle_error("No hornet manifest files found in repository")
 
         return cad_manifest, sim_manifest
@@ -93,17 +93,17 @@ class HornetManifestProcessor:
         """Extract $schema URL from manifest file and validate using jsonschema."""
         try:
             service.validate_manifest_schema(Path(manifest_path))
-            console.print(
-                f"[green]✓[/green] Schema validation successful for {manifest_path}"
-            )
+            _logger.info("Schema validation successful for %s", manifest_path)
             return True
 
         except jsonschema.ValidationError as e:
             error_msg = f"Schema validation failed for {manifest_path}: {e.message}"
+            _logger.error(error_msg)
             self._handle_error(error_msg)
             return False
         except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to validate schema for {manifest_path}: {e}"
+            _logger.error(error_msg)
             self._handle_error(error_msg)
             return False
 
@@ -131,24 +131,24 @@ class HornetManifestProcessor:
 
                     if full_path.exists():
                         valid_files.append(full_path)
-                        console.print(
-                            f"[dim]  Found file: {file_path}[/dim]", style="dim"
-                        )
+                        _logger.debug("Found file: %s", file_path)
                     else:
                         error_msg = f"Missing file referenced in manifest: {full_path}"
+                        _logger.error(error_msg)
                         self._handle_error(error_msg)
 
-            console.print(f"[green]✓[/green] Validated {len(valid_files)} CAD files")
+            _logger.info("Validated %d CAD files", len(valid_files))
             return valid_files
 
         except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to validate CAD files from {cad_manifest_path}: {e}"
+            _logger.error(error_msg)
             self._handle_error(error_msg)
             return []
 
     def load_cad_file(self, file_path: Path) -> None:
         """Mock function that prints file path for now."""
-        console.print(f"[blue]Loading CAD file:[/blue] {file_path}")
+        _logger.debug("Loading CAD file: %s", file_path)
         # TODO: Implement actual CAD file loading logic here
 
     def cleanup_repository(self, repo_path: Path | str) -> None:
@@ -157,9 +157,11 @@ class HornetManifestProcessor:
             repo_dir = Path(repo_path)
             if repo_dir.exists():
                 shutil.rmtree(repo_dir)
-                console.print(f"[green]✓[/green] Cleaned up repository at {repo_dir}")
+                _logger.info("Cleaned up repository at %s", repo_dir)
         except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            self._handle_error(f"Failed to cleanup repository {repo_path}: {e}")
+            error_msg = f"Failed to cleanup repository {repo_path}: {e}"
+            _logger.error(error_msg)
+            self._handle_error(error_msg)
 
     def process_hornet_manifest(
         self, metadata_path: Path | str, work_dir: Path | str, cleanup: bool = False
@@ -184,7 +186,9 @@ class HornetManifestProcessor:
             commit_hash = release.get("marker", "")
 
             if not repo_url or not commit_hash:
-                self._handle_error("Missing repository URL or commit hash in metadata")
+                error_msg = "Missing repository URL or commit hash in metadata"
+                _logger.error(error_msg)
+                self._handle_error(error_msg)
                 return results
 
             # Create working directory
@@ -227,14 +231,15 @@ class HornetManifestProcessor:
             return results
 
         except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            console.print(f"[red]✗ Unexpected error during processing: {e}[/red]")
-            self._handle_error(f"Unexpected error during processing: {e}")
+            error_msg = f"Unexpected error during processing: {e}"
+            _logger.error(error_msg)
+            self._handle_error(error_msg)
             results["errors"] = self.errors
             return results
 
     def _handle_error(self, error_msg: str) -> None:
         """Handle errors based on fail_fast mode."""
-        console.print(f"[red]✗ {error_msg}[/red]")
+        _logger.error(error_msg)
         self.errors.append(error_msg)
         if self.fail_fast:
             sys.exit(1)
