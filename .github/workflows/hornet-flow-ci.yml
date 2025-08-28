@@ -1,0 +1,59 @@
+name: Hornet Flow CI
+
+on:
+  push:
+    paths:
+      - 'tools/hornet-flow/**'
+      - '.github/workflows/hornet-flow-ci.yml'
+  pull_request:
+    paths:
+      - 'tools/hornet-flow/**'
+      - '.github/workflows/hornet-flow-ci.yml'
+
+defaults:
+  run:
+    working-directory: tools/hornet-flow
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+    
+    - name: Create virtual environment
+      run: uv venv --python ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: uv sync --all-groups
+    
+    - name: Validate code
+      run: uv run ruff check src/ test.py
+    
+    - name: Run linting
+      run: uv run ruff format --check src/ test.py
+    
+    - name: Run tests
+      run: uv run pytest test.py -v
+    
+    - name: Run tests with coverage
+      run: uv run --with pytest-cov --with pytest-mock pytest test.py --cov=src/hornet_flow --cov-report=xml --cov-report=term
+    
+    - name: Upload coverage to Codecov
+      if: matrix.python-version == '3.12'
+      uses: codecov/codecov-action@v4
+      with:
+        file: tools/hornet-flow/coverage.xml
+        flags: hornet-flow
+        name: hornet-flow-coverage
+        fail_ci_if_error: false
