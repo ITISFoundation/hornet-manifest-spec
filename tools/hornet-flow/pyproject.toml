@@ -13,9 +13,13 @@ dependencies = [
     "pydantic>=2.11.7",
 ]
 
-[project.optional-dependencies]
-test = ["pytest", "pytest-mock"]
-
+[dependency-groups]
+dev = [
+  "pytest"
+]
+lint = [
+  "ruff"
+]
 
 [project.scripts]
 hornet-flow = "hornet_flow.cli:main"
