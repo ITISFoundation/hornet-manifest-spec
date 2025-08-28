@@ -114,9 +114,11 @@ def resolve_component_file_path(
 ) -> Path:
     """Get the full path of a file based on the manifest file location."""
     # NOTE: how path is interpreted
-    base_dir = (
-        manifest_file.resolve().parent if file_path.startswith("./") else repo_dir
-    )
+    if file_path.startswith("./"):
+        base_dir = manifest_file.resolve().parent
+        file_path = file_path[2:]
+    else:
+        base_dir = repo_dir
     return base_dir / file_path
 
 
