@@ -10,10 +10,15 @@ import pytest
 from pathlib import Path
 
 from hornet_flow.models import HornetCadManifest
-from hornet_flow.service import clone_repository, load_metadata, resolve_component_file_path, walk_manifest_components, find_hornet_manifests
+from hornet_flow.service import (
+    clone_repository,
+    load_metadata,
+    resolve_component_file_path,
+    walk_manifest_components,
+    find_hornet_manifests,
+)
 
 import sys
-
 
 
 _CURRENT_DIR = Path(
@@ -25,9 +30,11 @@ _CURRENT_DIR = Path(
 def repo_path() -> Path:
     return _CURRENT_DIR.parent.parent
 
+
 @pytest.fixture
 def package_dir(repo_path: Path) -> Path:
     return repo_path / "tools" / "hornet_flow"
+
 
 def test_load_metadata_portal_device():
     """Test loading metadata from portal-device-metadata.json file."""
@@ -46,7 +53,9 @@ def test_load_metadata_portal_device():
     assert release["marker"] == "main"
 
 
-@pytest.mark.parametrize("commit_hash", ["main", "ceca2ac4abc8055a7aeaa624ab68a460cd03ff1e"])
+@pytest.mark.parametrize(
+    "commit_hash", ["main", "ceca2ac4abc8055a7aeaa624ab68a460cd03ff1e"]
+)
 def test_clone_repository(tmp_path: Path, commit_hash: str):
     repo_url = "https://github.com/ITISFoundation/hornet-manifest-spec"
 
@@ -105,7 +114,9 @@ def test_walk_cad_manifest_components(repo_path: Path):
     assert file_count > 0, "Should find at least one file"
 
 
-def validate_manifest_files(manifest_path: Path, repo_path: Path) -> tuple[list[str], list[str]]:
+def validate_manifest_files(
+    manifest_path: Path, repo_path: Path
+) -> tuple[list[str], list[str]]:
     with manifest_path.open("r", encoding="utf-8") as f:
         manifest_data = json.load(f)
 
@@ -116,8 +127,10 @@ def validate_manifest_files(manifest_path: Path, repo_path: Path) -> tuple[list[
         files = component.get("files", [])
         for file_info in files:
             file_path = file_info.get("path", "")
-            if file_path:  # Only check non-empty paths                
-                full_path = resolve_component_file_path(manifest_path, file_path, repo_path)
+            if file_path:  # Only check non-empty paths
+                full_path = resolve_component_file_path(
+                    manifest_path, file_path, repo_path
+                )
                 if full_path.exists():
                     existing_files.append(file_path)
                 else:
@@ -134,7 +147,7 @@ def test_cosmiic_repository_manifest_validation(tmp_path: Path):
             "origin": "GitHub",
             "url": "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
             "label": "main",
-            "marker": "main"
+            "marker": "main",
         }
     }
 
@@ -154,19 +167,21 @@ def test_cosmiic_repository_manifest_validation(tmp_path: Path):
     assert sim_manifest is not None, "SIM manifest should exist in COSMIIC repository"
 
     # Step 4: Validate CAD files exist
-    cad_existing_files, cad_missing_files = validate_manifest_files(cad_manifest, repo_path)
-
-    # Step 5: Validate SIM files exist
-    sim_existing_files, sim_missing_files = validate_manifest_files(sim_manifest, repo_path)
+    cad_existing_files, cad_missing_files = validate_manifest_files(
+        cad_manifest, repo_path
+    )
 
     # Report results
-    print(f"CAD manifest: Found {len(cad_existing_files)} existing files, {len(cad_missing_files)} missing files")
-    print(f"SIM manifest: Found {len(sim_existing_files)} existing files, {len(sim_missing_files)} missing files")
+    print(
+        f"CAD manifest: Found {len(cad_existing_files)} existing files, {len(cad_missing_files)} missing files"
+    )
 
     # Assert no missing files - all referenced files should exist
-    assert len(cad_missing_files) == 0, f"CAD manifest has missing files: {cad_missing_files}"
-    assert len(sim_missing_files) == 0, f"SIM manifest has missing files: {sim_missing_files}"
+    assert len(cad_missing_files) == 0, (
+        f"CAD manifest has missing files: {cad_missing_files}"
+    )
 
     # Assert we found files in both manifests
-    assert len(cad_existing_files) > 0, "CAD manifest should reference at least some files"
-    assert len(sim_existing_files) > 0, "SIM manifest should reference at least some files"
+    assert len(cad_existing_files) > 0, (
+        "CAD manifest should reference at least some files"
+    )

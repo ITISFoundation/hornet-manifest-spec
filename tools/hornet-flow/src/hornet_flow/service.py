@@ -97,6 +97,7 @@ def validate_manifest_schema(manifest_file: Path):
     # Validate manifest against schema. Raises if not valid
     jsonschema.validate(manifest, schema)
 
+
 def walk_manifest_components(manifest: dict[str, Any]):
     """Recursively walk through manifest components and yield each component."""
     components = manifest.get("components", [])
@@ -114,12 +115,15 @@ def walk_manifest_components(manifest: dict[str, Any]):
         yield from _walk_component(component)
 
 
-def resolve_component_file_path(manifest_file: Path, file_path: str, repo_dir: Path) -> Path:
+def resolve_component_file_path(
+    manifest_file: Path, file_path: str, repo_dir: Path
+) -> Path:
     """Get the full path of a file based on the manifest file location."""
     # NOTE: how path is interpreted
-    base_dir = manifest_file.resolve().parent if file_path.startswith("./") else repo_dir
+    base_dir = (
+        manifest_file.resolve().parent if file_path.startswith("./") else repo_dir
+    )
     return base_dir / file_path
-
 
 
 class HornetManifestLoader:
@@ -223,7 +227,9 @@ class HornetManifestLoader:
                 for file_info in files:
                     file_path = file_info.get("path", "")
 
-                    full_path = resolve_component_file_path(manifest_file, file_path, repo_dir)
+                    full_path = resolve_component_file_path(
+                        manifest_file, file_path, repo_dir
+                    )
 
                     if full_path.exists():
                         valid_files.append(str(full_path))
@@ -235,7 +241,7 @@ class HornetManifestLoader:
             self._logger.info("Validated %d CAD files", len(valid_files))
             return valid_files
 
-        except Exception as e: # pylint: disable=W0718:broad-exception-caught
+        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to validate CAD files from {cad_manifest_path}: {e}"
             self._handle_error(error_msg)
             return []
@@ -260,7 +266,7 @@ class HornetManifestLoader:
                 else:
                     shutil.rmtree(repo_dir)
                     self._logger.info("Cleaned up repository at %s", repo_dir)
-        except Exception as e: # pylint: disable=W0718:broad-exception-caught
+        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             self._handle_error(f"Failed to cleanup repository {repo_path}: {e}")
 
     def process_hornet_manifest(
