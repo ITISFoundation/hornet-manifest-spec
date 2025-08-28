@@ -19,11 +19,11 @@ def load_metadata(metadata_path: Path | str) -> dict[str, Any]:
 
 
 def clone_repository(repo_url: str, commit_hash: str, target_dir: Path | str) -> Path:
-    """Clone repository with depth 1 and checkout specific commit."""
+    """Clone repository and checkout specific commit."""
     target_path = Path(target_dir)
     target_path.mkdir(parents=True, exist_ok=True)
 
-    # Clone with depth 1
+    # Clone with depth 1 first
     subprocess.run(
         [
             "git",
@@ -38,13 +38,28 @@ def clone_repository(repo_url: str, commit_hash: str, target_dir: Path | str) ->
         capture_output=True,
     )
 
-    # Checkout specific commit
-    subprocess.run(
-        ["git", "checkout", commit_hash],
-        cwd=str(target_path),
-        check=True,
-        capture_output=True,
-    )
+    # Try to checkout the commit, if it fails, fetch it specifically
+    try:
+        subprocess.run(
+            ["git", "checkout", commit_hash],
+            cwd=str(target_path),
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError:
+        # Commit not in shallow clone, fetch it specifically
+        subprocess.run(
+            ["git", "fetch", "--depth", "1", "origin", commit_hash],
+            cwd=str(target_path),
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "checkout", commit_hash],
+            cwd=str(target_path),
+            check=True,
+            capture_output=True,
+        )
 
     return target_path
 
