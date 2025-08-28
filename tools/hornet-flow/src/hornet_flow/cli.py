@@ -1,17 +1,22 @@
-import argparse
 import json
 import logging
-import os
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Annotated
 
 import jsonschema
+import typer
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from . import service
+
+console = Console()
+app = typer.Typer(help="Hornet Manifest Flow - Load and process hornet manifests")
 
 _logger = logging.getLogger(__name__)
 
@@ -19,18 +24,16 @@ _logger = logging.getLogger(__name__)
 class HornetManifestProcessor:
     """CLI processor for loading and processing hornet manifests with logging and error handling."""
 
-    def __init__(self, fail_fast: bool = False, dry_run: bool = False) -> None:
+    def __init__(self, fail_fast: bool = False) -> None:
         self.fail_fast = fail_fast
-        self.dry_run = dry_run
         self.errors: list[str] = []
         self.warnings: list[str] = []
-        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     def load_metadata(self, metadata_path: Path | str) -> dict[str, Any]:
         """Load and parse the metadata JSON file from local path."""
         try:
             metadata = service.load_metadata(metadata_path)
-            self._logger.info("Loaded metadata from %s", metadata_path)
+            console.print(f"[green]✓[/green] Loaded metadata from {metadata_path}")
             return metadata
         except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             error_msg = f"Failed to load metadata from {metadata_path}: {e}"
@@ -45,24 +48,26 @@ class HornetManifestProcessor:
             target_path = Path(target_dir)
             repo_path = target_path / "repo"
 
-            if self.dry_run:
-                self._logger.info(
-                    "[DRY RUN] Would clone %s at commit %s to %s",
-                    repo_url,
-                    commit_hash,
-                    repo_path,
-                )
-                return str(repo_path)
+            console.print(f"[blue]Cloning repository:[/blue] {repo_url}")
 
-            service.clone_repository(repo_url, commit_hash, repo_path)
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+                transient=True,
+            ) as progress:
+                task = progress.add_task("Cloning repository...", total=None)
+                service.clone_repository(repo_url, commit_hash, repo_path)
+                progress.update(task, description="Repository cloned successfully")
 
-            self._logger.info(
-                "Cloned repository %s at commit %s", repo_url, commit_hash
+            console.print(
+                f"[green]✓[/green] Successfully cloned repository at commit {commit_hash[:8]}"
             )
             return str(repo_path)
 
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to clone repository {repo_url}: {e}"
+            console.print(f"[red]✗ {error_msg}[/red]")
             self._handle_error(error_msg)
             return ""
 
@@ -74,11 +79,12 @@ class HornetManifestProcessor:
         cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
 
         if cad_manifest:
-            self._logger.info("Found CAD manifest: %s", cad_manifest)
+            console.print(f"[green]✓[/green] Found CAD manifest: {cad_manifest}")
         if sim_manifest:
-            self._logger.info("Found SIM manifest: %s", sim_manifest)
+            console.print(f"[green]✓[/green] Found SIM manifest: {sim_manifest}")
 
         if not cad_manifest and not sim_manifest:
+            console.print("[red]✗ No hornet manifest files found in repository[/red]")
             self._handle_error("No hornet manifest files found in repository")
 
         return cad_manifest, sim_manifest
@@ -87,7 +93,9 @@ class HornetManifestProcessor:
         """Extract $schema URL from manifest file and validate using jsonschema."""
         try:
             service.validate_manifest_schema(Path(manifest_path))
-            self._logger.info("Schema validation successful for %s", manifest_path)
+            console.print(
+                f"[green]✓[/green] Schema validation successful for {manifest_path}"
+            )
             return True
 
         except jsonschema.ValidationError as e:
@@ -123,12 +131,14 @@ class HornetManifestProcessor:
 
                     if full_path.exists():
                         valid_files.append(full_path)
-                        self._logger.debug("Found file: %s", file_path)
+                        console.print(
+                            f"[dim]  Found file: {file_path}[/dim]", style="dim"
+                        )
                     else:
                         error_msg = f"Missing file referenced in manifest: {full_path}"
                         self._handle_error(error_msg)
 
-            self._logger.info("Validated %d CAD files", len(valid_files))
+            console.print(f"[green]✓[/green] Validated {len(valid_files)} CAD files")
             return valid_files
 
         except Exception as e:  # pylint: disable=W0718:broad-exception-caught
@@ -138,24 +148,16 @@ class HornetManifestProcessor:
 
     def load_cad_file(self, file_path: Path) -> None:
         """Mock function that prints file path for now."""
-        if self.dry_run:
-            self._logger.info("[DRY RUN] Would load CAD file: %s", file_path)
-        else:
-            self._logger.info("Loading CAD file: %s", file_path)
-            # TODO: Implement actual CAD file loading logic here
+        console.print(f"[blue]Loading CAD file:[/blue] {file_path}")
+        # TODO: Implement actual CAD file loading logic here
 
     def cleanup_repository(self, repo_path: Path | str) -> None:
         """Explicitly remove cloned repository directory."""
         try:
             repo_dir = Path(repo_path)
             if repo_dir.exists():
-                if self.dry_run:
-                    self._logger.info(
-                        "[DRY RUN] Would cleanup repository at %s", repo_dir
-                    )
-                else:
-                    shutil.rmtree(repo_dir)
-                    self._logger.info("Cleaned up repository at %s", repo_dir)
+                shutil.rmtree(repo_dir)
+                console.print(f"[green]✓[/green] Cleaned up repository at {repo_dir}")
         except Exception as e:  # pylint: disable=W0718:broad-exception-caught
             self._handle_error(f"Failed to cleanup repository {repo_path}: {e}")
 
@@ -225,84 +227,85 @@ class HornetManifestProcessor:
             return results
 
         except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            self._logger.exception("Unexpected error during processing")
+            console.print(f"[red]✗ Unexpected error during processing: {e}[/red]")
             self._handle_error(f"Unexpected error during processing: {e}")
             results["errors"] = self.errors
             return results
 
     def _handle_error(self, error_msg: str) -> None:
         """Handle errors based on fail_fast mode."""
-        self._logger.error(error_msg)
+        console.print(f"[red]✗ {error_msg}[/red]")
         self.errors.append(error_msg)
         if self.fail_fast:
             sys.exit(1)
 
 
-def main() -> None:
+@app.command()
+def main(
+    metadata_path: Annotated[str, typer.Argument(help="Path to metadata JSON file")],
+    work_dir: Annotated[
+        str, typer.Option("/tmp", "--work-dir", help="Working directory for clones")
+    ],
+    fail_fast: Annotated[
+        bool, typer.Option("--fail-fast", help="Stop on first error")
+    ] = False,
+    cleanup: Annotated[
+        bool, typer.Option("--cleanup", help="Clean up cloned repo")
+    ] = False,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
+    ] = False,
+    quiet: Annotated[
+        bool, typer.Option("--quiet", "-q", help="Only show errors")
+    ] = False,
+) -> None:
     """
     Hornet Manifest Flow
 
     Loads metadata from a JSON file, clones a git repository,
-    verifies ZIP files, extracts them, finds and validates hornet manifests,
     and loads CAD files according to the manifest specifications.
-
-    Usage
-        hornet-flow --help
-        hornet-flow ./examples/sample_metadata.json --work-dir /tmp/hornet_test --verbose
     """
-
-    parser = argparse.ArgumentParser(description="Load and process hornet manifests")
-    parser.add_argument("metadata_path", help="Path to metadata JSON file")
-    parser.add_argument(
-        "--work-dir", default="/tmp", help="Working directory for clones"
-    )
-    parser.add_argument("--fail-fast", action="store_true", help="Stop on first error")
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Don't actually load files"
-    )
-    parser.add_argument("--cleanup", action="store_true", help="Clean up cloned repo")
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose logging"
-    )
-    parser.add_argument("--quiet", "-q", action="store_true", help="Only show errors")
-
-    args = parser.parse_args()
-
     # Configure logging
-    if args.quiet:
+    if quiet:
         log_level = logging.ERROR
-    elif args.verbose:
+    elif verbose:
         log_level = logging.DEBUG
     else:
         log_level = logging.INFO
 
     logging.basicConfig(
         level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
+        format="%(message)s",
+        handlers=[RichHandler(console=console, markup=True)],
     )
 
-    loader = HornetManifestProcessor(fail_fast=args.fail_fast, dry_run=args.dry_run)
-    results = loader.process_hornet_manifest(
-        args.metadata_path, args.work_dir, cleanup=args.cleanup
+    console.print("[bold blue]🚀 Hornet Manifest Flow[/bold blue]")
+    console.print(f"Processing metadata: [cyan]{metadata_path}[/cyan]")
+
+    processor = HornetManifestProcessor(fail_fast=fail_fast)
+    results = processor.process_hornet_manifest(
+        Path(metadata_path), Path(work_dir), cleanup=cleanup
     )
 
-    _logger.info(
-        "Processing %s\n Files processed: %d\n Errors: %d\n Warnings: %d",
-        "completed" if results["success"] else "failed",
-        len(results["processed_files"]),
-        len(results["errors"]),
-        len(results["warnings"]),
+    # Print summary
+    status = (
+        "[green]✓ completed[/green]" if results["success"] else "[red]✗ failed[/red]"
     )
+    console.print(f"\n[bold]Processing {status}[/bold]")
+    console.print(f"📁 Files processed: [cyan]{len(results['processed_files'])}[/cyan]")
+    console.print(f"❌ Errors: [red]{len(results['errors'])}[/red]")
+    console.print(f"⚠️  Warnings: [yellow]{len(results['warnings'])}[/yellow]")
 
     if results["errors"]:
-        _logger.error("Errors: %d", len(results["errors"]))
+        console.print(f"\n[bold red]Errors ({len(results['errors'])}):[/bold red]")
         for error in results["errors"]:
-            _logger.error(" %s", error)
+            console.print(f"  [red]•[/red] {error}")
 
     if results["warnings"]:
-        _logger.warning("Warnings: %d", len(results["warnings"]))
+        console.print(
+            f"\n[bold yellow]Warnings ({len(results['warnings'])}):[/bold yellow]"
+        )
         for warning in results["warnings"]:
-            _logger.warning(" %s", warning)
+            console.print(f"  [yellow]•[/yellow] {warning}")
 
-    sys.exit(os.EX_OK if results["success"] else os.EX_SOFTWARE)
+    raise typer.Exit(0 if results["success"] else 1)
