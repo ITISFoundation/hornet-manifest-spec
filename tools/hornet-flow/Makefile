@@ -1,15 +1,20 @@
-.PHONY: help test test-unit test-integration lint clean install install-uv run-example
+.PHONY: help test test-unit test-integration lint clean clean-venv install install-dev install-lint install-all install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
 
 # Default target
 help:
 	@echo "Available targets:"
 	@echo "  install-uv      - Install uv package manager"
+	@echo "  venv            - Create virtual environment"
 	@echo "  test            - Run all tests"
 	@echo "  test-unit       - Run unit tests only"
 	@echo "  test-integration- Run integration tests only"
 	@echo "  lint            - Run code linting"
 	@echo "  clean           - Clean up temporary files"
-	@echo "  install         - Install development dependencies"
+	@echo "  clean-venv      - Remove virtual environment"
+	@echo "  install         - Install package in editable mode"
+	@echo "  install-dev     - Install dev dependency group"
+	@echo "  install-lint    - Install lint dependency group"
+	@echo "  install-all     - Install all dependency groups"
 	@echo "  run-example     - Run loader with example metadata"
 	@echo "  run-dry         - Run loader in dry-run mode"
 
@@ -19,30 +24,62 @@ install-uv:
 	@curl -LsSf https://astral.sh/uv/install.sh | sh
 	@echo "✓ uv installed. You may need to restart your shell or run 'source ~/.bashrc'"
 
+# Virtual environment
+venv: check-deps
+	@echo "Creating virtual environment..."
+	@if [ ! -d ".venv" ]; then \
+		uv venv; \
+		echo "✓ Virtual environment created at .venv"; \
+	else \
+		echo "✓ Virtual environment already exists"; \
+	fi
+
 # Test targets
 test:
 	@echo "Running all tests..."
-	uv run --with pytest --with pytest-mock pytest test.py -v
+	uv run pytest test.py -v
+
+test-unit:
+	@echo "Running unit tests..."
+	uv run pytest test.py -v -k "not integration"
+
+test-integration:
+	@echo "Running integration tests..."
+	uv run pytest test.py -v -k "integration"
+
+lint:
+	@echo "Running code linting..."
+	uv run ruff check src/ test.py
+	uv run ruff format --check src/ test.py
 
 
 # Dependencies
-install:
-	@echo "Installing development dependencies..."
-	@echo "Note: Runtime dependencies are handled by inline script metadata in hornet_manifest_loader.py"
-	@echo "Development tools will be installed as needed via uv run --with"
+install: venv
+	@echo "Installing package in editable mode with dependencies..."
+	uv sync
+	@echo "✓ Package installed in editable mode"
+
+install-dev: venv
+	@echo "Installing dev dependency group..."
+	uv sync --group dev
+
+install-lint: venv
+	@echo "Installing lint dependency group..."
+	uv sync --group lint
+
+install-all: venv
+	@echo "Installing all dependency groups..."
+	uv sync --all-groups
 
 # Example runs
 run-example:
 	@echo "Running loader with example metadata..."
-	uv run hornet_manifest_loader.py ../examples/sample_metadata.json --work-dir /tmp/hornet_test --verbose
+	uv run hornet-flow examples/portal-device-metadata.json --work-dir /tmp/hornet-flow -v
 
 run-dry:
 	@echo "Running loader in dry-run mode..."
-	uv run hornet_manifest_loader.py ../examples/sample_metadata.json --dry-run --work-dir /tmp/hornet_test --verbose
+	uv run hornet-flow examples/portal-device-metadata.json --work-dir /tmp/hornet-flow --dry-run -v
 
-run-quiet:
-	@echo "Running loader in quiet mode..."
-	uv run hornet_manifest_loader.py ../examples/sample_metadata.json --work-dir /tmp/hornet_test --quiet
 
 # Utility targets
 clean:
@@ -50,7 +87,12 @@ clean:
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-	rm -rf /tmp/hornet_test_*
+	rm -rf /tmp/hornet*
+
+clean-venv:
+	@echo "Removing virtual environment..."
+	rm -rf .venv
+	@echo "✓ Virtual environment removed"
 
 # Development helpers
 check-deps:
@@ -59,21 +101,19 @@ check-deps:
 	@echo "✓ uv is available"
 
 validate-code:
-	@echo "Validating Python syntax..."
-	uv run -c "import py_compile; py_compile.compile('hornet_manifest_loader.py', doraise=True)"
-	uv run -c "import py_compile; py_compile.compile('test_hornet_manifest_loader.py', doraise=True)"
-	@echo "✓ Code syntax is valid"
-
+	@echo "Validating code with ruff..."
+	uv run ruff check src/ test.py
+	@echo "✓ Code validation passed"
 
 # Test with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	uv run --with pytest --with pytest-cov --with pytest-mock pytest test_hornet_manifest_loader.py --cov=hornet_manifest_loader --cov-report=html --cov-report=term
+	uv run --with pytest-cov --with pytest-mock pytest test.py --cov=src/hornet_flow --cov-report=html --cov-report=term
 
 # Full development workflow
-dev-setup: check-deps validate-code test
+dev-setup: check-deps venv install-all validate-code test
 	@echo "✓ Development setup complete"
 
 # CI-like workflow
-ci: check-deps validate-code lint test
+ci: check-deps venv install-lint validate-code lint test
 	@echo "✓ CI checks passed"
