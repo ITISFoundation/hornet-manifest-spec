@@ -1,18 +1,27 @@
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
-    hooks:
-    -   id: trailing-whitespace
-    -   id: end-of-file-fixer
-    -   id: check-yaml
-    -   id: check-json
-    -   id: check-added-large-files
+    -   repo: https://github.com/pre-commit/pre-commit-hooks
+        rev: v4.4.0
+        hooks:
+        -  id: trailing-whitespace
+        -  id: end-of-file-fixer
+        -  id: check-yaml
+        -  id: check-json
+        -  id: check-added-large-files
 
--   repo: local
-    hooks:
-    -   id: sync-vocab-schema
-        name: Sync vocabulary to schema
-        entry: python3 scripts/sync_vocab_to_schema.py
-        language: system
-        files: '^vocab/.*\.json$'
-        pass_filenames: false
+    -   repo: local
+        hooks:
+        -   id: sync-vocab-schema
+            name: Sync vocabulary to schema
+            entry: python3 scripts/sync_vocab_to_schema.py
+            language: system
+            files: '^vocab/.*\.json$'
+            pass_filenames: false
+    -   repo: https://github.com/astral-sh/ruff-pre-commit
+        # Ruff version.
+        rev: v0.12.10
+        hooks:
+            # Run the linter.
+            -   id: ruff-check
+                args: [ --fix ]
+            # Run the formatter.
+            -   id: ruff-format
