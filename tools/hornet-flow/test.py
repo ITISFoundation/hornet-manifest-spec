@@ -47,10 +47,12 @@ def test_load_metadata_portal_device():
     # Verify release information
     assert "release" in metadata
     release = metadata["release"]
-    assert release["origin"] == "GitHub"
-    assert release["url"] == "https://github.com/ITISFoundation/hornet-manifest-spec"
-    assert release["label"] == "1.0.0"
-    assert release["marker"] == "main"
+    assert release == {
+        "origin": "GitHub",
+        "url": "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+        "label": "main",
+        "marker": "main",
+    }
 
 
 @pytest.mark.parametrize(
