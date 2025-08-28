@@ -149,7 +149,7 @@ def test_cosmiic_repository_manifest_validation(tmp_path: Path):
             "origin": "GitHub",
             "url": "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
             "label": "main",
-            "marker": "main",
+            "marker": "c04576f1a83803dec3192d8c03c731638e377fcb",  # NOTE: can also be "main"
         }
     }
 
