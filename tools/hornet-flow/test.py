@@ -12,6 +12,22 @@ from pathlib import Path
 from hornet_flow.models import HornetCadManifest
 from hornet_flow.service import clone_repository, load_metadata, resolve_component_file_path, walk_manifest_components, find_hornet_manifests
 
+import sys
+
+
+
+_CURRENT_DIR = Path(
+    sys.argv[0] if __name__ == "__main__" else __file__
+).parent.resolve()
+
+
+@pytest.fixture
+def repo_path() -> Path:
+    return _CURRENT_DIR.parent.parent
+
+@pytest.fixture
+def package_dir(repo_path: Path) -> Path:
+    return repo_path / "tools" / "hornet_flow"
 
 def test_load_metadata_portal_device():
     """Test loading metadata from portal-device-metadata.json file."""
@@ -49,10 +65,10 @@ def test_clone_repository(tmp_path: Path, commit_hash: str):
         assert folder_path.is_dir(), f"'{folder_name}' exists but is not a directory"
 
 
-def test_walk_cad_manifest_components():
+def test_walk_cad_manifest_components(repo_path: Path):
     """Test walking through CAD manifest components and validating with Pydantic model."""
     # Get the path to the test CAD manifest file
-    manifest_path = Path(__file__).parent.parent / "examples" / "cad_manifest.json"
+    manifest_path = repo_path / "examples" / "cad_manifest.json"
 
     # Load the manifest JSON
     with manifest_path.open("r", encoding="utf-8") as f:
