@@ -2,21 +2,38 @@
     "datePublished": "2025-01-24",
     "pennsieveDatasetId": 422,
     "version": 1,
-    "name": "Example/hornet-test",
+    "name": "Example/cosmiic-inc",
     "description": "Example repository for testing hornet manifest loader",
     "files": [
         {
-            "name": "test.zip",
-            "path": "assets/test.zip",
-            "size": 1000,
-            "fileType": "ZIP",
-            "sha256": "abc123def456"
+            "name": "banner.jpg",
+            "path": "banner.jpg",
+            "size": 8675,
+            "fileType": "Data",
+            "s3VersionId": "kH_v6OuoB1f6jeNK.hK2G3Ez26gemv53",
+            "sha256": "fDglVysAaraeTDi+F3b7CtKpKxd8cHBussmDJWr4nak="
+        },
+        {
+            "name": "changelog.md",
+            "path": "changelog.md",
+            "size": 1471,
+            "fileType": "Markdown",
+            "s3VersionId": "OYO8FOt0xcsbRqtfBXjlpbF4htokKwg5",
+            "sha256": "nDLw0B7IY0hICiIwf9rLg7D+z9IR+loTOrrMcrbmfFk="
+        },
+        {
+            "name": "readme.md",
+            "path": "readme.md",
+            "size": 5180,
+            "fileType": "Markdown",
+            "s3VersionId": "PzPJVhYu711fCj12hFThV24Aqn4lBtrt",
+            "sha256": "uP0l5dXp3thIPHR4AEKRAP9rVFyPf3MPyVRi+6v+XVw="
         }
     ],
     "release": {
         "origin": "GitHub",
-        "url": "https://github.com/ITISFoundation/hornet-manifest-spec",
-        "label": "1.0.0",
+        "url": "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+        "label": "main",
         "marker": "main"
     }
 }

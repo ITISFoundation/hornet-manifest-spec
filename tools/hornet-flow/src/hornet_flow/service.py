@@ -52,7 +52,6 @@ def clone_repository(repo_url: str, commit_hash: str, target_dir: Path | str) ->
 def find_hornet_manifests(repo_path: Path | str) -> tuple[Path | None, Path | None]:
     """Look for .hornet/cad_manifest.json and .hornet/sim_manifest.json."""
     repo_dir = Path(repo_path)
-    assert repo_dir.is_dir()
 
     cad_manifest: Path | None = None
     sim_manifest: Path | None = None
@@ -119,3 +118,6 @@ def resolve_component_file_path(
         manifest_file.resolve().parent if file_path.startswith("./") else repo_dir
     )
     return base_dir / file_path
+
+
+# TODO: validate that references in sim-manifest.json exist in cad-manifest.json

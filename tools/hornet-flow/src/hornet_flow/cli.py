@@ -101,7 +101,7 @@ class HornetManifestProcessor:
 
     def validate_cad_files_exist(
         self, cad_manifest_path: Path | str, repo_path: Path | str
-    ) -> list[str]:
+    ) -> list[Path]:
         """Parse CAD manifest JSON tree and verify referenced files exist."""
         try:
             manifest_file = Path(cad_manifest_path)
@@ -110,7 +110,7 @@ class HornetManifestProcessor:
             with manifest_file.open("r", encoding="utf-8") as f:
                 manifest = json.load(f)
 
-            valid_files: list[str] = []
+            valid_files: list[Path] = []
 
             for component in service.walk_manifest_components(manifest):
                 files = component.get("files", [])
@@ -122,7 +122,7 @@ class HornetManifestProcessor:
                     )
 
                     if full_path.exists():
-                        valid_files.append(str(full_path))
+                        valid_files.append(full_path)
                         self._logger.debug("Found file: %s", file_path)
                     else:
                         error_msg = f"Missing file referenced in manifest: {full_path}"
@@ -136,7 +136,7 @@ class HornetManifestProcessor:
             self._handle_error(error_msg)
             return []
 
-    def load_cad_file(self, file_path: Path | str) -> None:
+    def load_cad_file(self, file_path: Path) -> None:
         """Mock function that prints file path for now."""
         if self.dry_run:
             self._logger.info("[DRY RUN] Would load CAD file: %s", file_path)
@@ -225,6 +225,7 @@ class HornetManifestProcessor:
             return results
 
         except Exception as e:  # pylint: disable=W0718:broad-exception-caught
+            self._logger.exception("Unexpected error during processing")
             self._handle_error(f"Unexpected error during processing: {e}")
             results["errors"] = self.errors
             return results

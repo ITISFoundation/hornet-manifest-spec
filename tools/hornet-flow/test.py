@@ -166,7 +166,7 @@ def test_cosmiic_repository_manifest_validation(tmp_path: Path):
     assert cad_manifest is not None, "CAD manifest should exist in COSMIIC repository"
     assert sim_manifest is not None, "SIM manifest should exist in COSMIIC repository"
 
-    # Step 4: Validate CAD files exist
+    # Step 3: Validate CAD files exist
     cad_existing_files, cad_missing_files = validate_manifest_files(
         cad_manifest, repo_path
     )
