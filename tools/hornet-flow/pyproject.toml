@@ -35,3 +35,12 @@ disable = [
   "missing-class-docstring",
   "missing-function-docstring"
 ]
+
+
+[tool.ruff]
+select = ["I"]  # enable isort rules
+
+[tool.ruff.isort]
+known-first-party = ["hornet_flow"]  # adjust to your own package
+known-third-party = ["pydantic"]
+combine-as-imports = true
