@@ -37,10 +37,8 @@ disable = [
 ]
 
 
-[tool.ruff]
+[tool.ruff.lint]
 select = ["I"]  # enable isort rules
-
-[tool.ruff.isort]
-known-first-party = ["hornet_flow"]  # adjust to your own package
-known-third-party = ["pydantic"]
-combine-as-imports = true
+isort.known-first-party = ["hornet_flow"]  # adjust to your own package
+isort.known-third-party = ["pydantic"]
+isort.combine-as-imports = true
