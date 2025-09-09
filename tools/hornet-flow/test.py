@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from hornet_flow.model import Component
 from hornet_flow.service import (
     clone_repository,
     find_hornet_manifests,
@@ -74,7 +75,7 @@ def test_clone_repository(tmp_path: Path, commit_hash: str):
         assert folder_path.is_dir(), f"'{folder_name}' exists but is not a directory"
 
 
-def test_walk_cad_manifest_components(repo_path: Path):
+def test_walk_cad_manifest_components(repo_path: Path, tmp_path: Path):
     """Test walking through CAD manifest components and validating with Pydantic model."""
     # Get the path to the test CAD manifest file
     manifest_path = repo_path / "examples" / "cad_manifest.json"
@@ -88,22 +89,29 @@ def test_walk_cad_manifest_components(repo_path: Path):
     file_count = 0
 
     for component in walk_manifest_components(manifest_data):
+        assert isinstance(component, Component)
         component_count += 1
 
         # Verify component has required fields (now it's a dataclass)
-        assert hasattr(component, "id")
-        assert hasattr(component, "type")
-        assert hasattr(component, "description")
-        assert hasattr(component, "files")
-        assert hasattr(component, "parent_id")
+        assert component.id
+        assert component.type
+        assert component.description
+        assert component.files
 
         # Count files in this component
         file_count += len(component.files)
 
+        # Create a directory for each component using its id
+        folder_parts = component.parent_id + [component.id]
+        component_dir = Path.joinpath(tmp_path, *folder_parts)
+        component_dir.mkdir(exist_ok=True)
+        assert component_dir.exists() and component_dir.is_dir()
+
         # Verify each file has required fields (now File dataclass instances)
         for file_obj in component.files:
-            assert hasattr(file_obj, "path")
-            assert hasattr(file_obj, "type")
+            assert file_obj.path
+            assert file_obj.type
+            (component_dir / Path(file_obj.path).name).touch()
 
     # Verify we found components and files
     assert component_count > 0, "Should find at least one component"
