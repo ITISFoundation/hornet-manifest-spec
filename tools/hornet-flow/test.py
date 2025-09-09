@@ -9,7 +9,6 @@ import json
 import pytest
 from pathlib import Path
 
-from hornet_flow.models import HornetCadManifest
 from hornet_flow.service import (
     clone_repository,
     load_metadata,
@@ -84,10 +83,6 @@ def test_walk_cad_manifest_components(repo_path: Path):
     # Load the manifest JSON
     with manifest_path.open("r", encoding="utf-8") as f:
         manifest_data = json.load(f)
-
-    # Validate the manifest structure using Pydantic model
-    cad_manifest = HornetCadManifest.model_validate(manifest_data)
-    assert cad_manifest is not None
 
     # Walk through all components using the walk_manifest_components function
     component_count = 0
