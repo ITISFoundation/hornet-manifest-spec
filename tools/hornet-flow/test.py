@@ -50,7 +50,7 @@ def test_load_metadata_portal_device():
         "origin": "GitHub",
         "url": "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
         "label": "main",
-        "marker": "main",
+        "marker": "c04576f1a83803dec3192d8c03c731638e377fcb",
     }
 
 
