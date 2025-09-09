@@ -1,5 +1,27 @@
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, List, Literal
+
 import jsonschema
+
+
+@dataclass
+class File:
+    """Represents a file in a component."""
+
+    path: str
+    type: Literal["solidworks_part", "solidworks_assembly", "step_export"]
+
+
+@dataclass
+class Component:
+    """Represents a component in the CAD manifest."""
+
+    id: str
+    type: Literal["assembly", "part"]
+    description: str
+    files: List[File]
+    components: List["Component"] = field(default_factory=list)  # Only for assemblies
+    parent_id: List[str] = field(default_factory=list)  # Path to parent components
 
 
 _metadata_model_schema = {

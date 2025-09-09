@@ -6,19 +6,18 @@
 
 
 import json
-import pytest
+import sys
 from pathlib import Path
+
+import pytest
 
 from hornet_flow.service import (
     clone_repository,
+    find_hornet_manifests,
     load_metadata,
     resolve_component_file_path,
     walk_manifest_components,
-    find_hornet_manifests,
 )
-
-import sys
-
 
 _CURRENT_DIR = Path(
     sys.argv[0] if __name__ == "__main__" else __file__
@@ -91,20 +90,20 @@ def test_walk_cad_manifest_components(repo_path: Path):
     for component in walk_manifest_components(manifest_data):
         component_count += 1
 
-        # Verify component has required fields
-        assert "id" in component
-        assert "type" in component
-        assert "description" in component
-        assert "files" in component
+        # Verify component has required fields (now it's a dataclass)
+        assert hasattr(component, "id")
+        assert hasattr(component, "type")
+        assert hasattr(component, "description")
+        assert hasattr(component, "files")
+        assert hasattr(component, "parent_id")
 
         # Count files in this component
-        files = component.get("files", [])
-        file_count += len(files)
+        file_count += len(component.files)
 
-        # Verify each file has required fields
-        for file_info in files:
-            assert "path" in file_info
-            assert "type" in file_info
+        # Verify each file has required fields (now File dataclass instances)
+        for file_obj in component.files:
+            assert hasattr(file_obj, "path")
+            assert hasattr(file_obj, "type")
 
     # Verify we found components and files
     assert component_count > 0, "Should find at least one component"
@@ -121,9 +120,9 @@ def validate_manifest_files(
     existing_files = []
 
     for component in walk_manifest_components(manifest_data):
-        files = component.get("files", [])
-        for file_info in files:
-            file_path = file_info.get("path", "")
+        # Now component is a Component dataclass instance
+        for file_obj in component.files:
+            file_path = file_obj.path
             if file_path:  # Only check non-empty paths
                 full_path = resolve_component_file_path(
                     manifest_path, file_path, repo_path

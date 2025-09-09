@@ -1,12 +1,12 @@
 import json
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Generator, Optional
 
-import jsonschema
 import httpx
+import jsonschema
 
-from .model import validate_metadata
+from .model import Component, File, validate_metadata
 
 
 def load_metadata(metadata_path: Path | str) -> dict[str, Any]:
@@ -107,21 +107,52 @@ def validate_manifest_schema(manifest_file: Path):
     jsonschema.validate(manifest, schema)
 
 
-def walk_manifest_components(manifest: dict[str, Any]):
-    """Recursively walk through manifest components and yield each component."""
-    components = manifest.get("components", [])
+def walk_manifest_components(
+    manifest_data: Dict[str, Any], parent_id: Optional[list[str]] = None
+) -> Generator[Component, None, None]:
+    """Walk through manifest components and yield Component dataclass instances.
 
-    def _walk_component(component: dict[str, Any]):
-        """Recursively yield component and its sub-components."""
+    Args:
+        manifest_data: The loaded manifest JSON data
+        parent_id: List of parent component IDs (path to parent)
+
+    Yields:
+        Component: Component dataclass instances with proper parent tracking
+    """
+    if parent_id is None:
+        parent_id = []
+
+    # Get components from manifest
+    components = manifest_data.get("components", [])
+
+    for component_dict in components:
+        # Convert file dictionaries to File dataclass instances
+        files = [
+            File(path=file_dict["path"], type=file_dict["type"])
+            for file_dict in component_dict.get("files", [])
+        ]
+
+        # Create Component instance
+        component = Component(
+            id=component_dict["id"],
+            type=component_dict["type"],
+            description=component_dict["description"],
+            files=files,
+            parent_id=parent_id.copy(),
+        )
+
+        # Yield the current component
         yield component
 
-        # Recursively process sub-components
-        sub_components = component.get("components", [])
-        for sub_component in sub_components:
-            yield from _walk_component(sub_component)
+        # Recursively walk child components if they exist
+        if "components" in component_dict and component_dict["components"]:
+            # Create new parent path for children
+            child_parent_id = parent_id + [component_dict["id"]]
 
-    for component in components:
-        yield from _walk_component(component)
+            # Create a temporary manifest structure for recursion
+            child_manifest = {"components": component_dict["components"]}
+
+            yield from walk_manifest_components(child_manifest, child_parent_id)
 
 
 def resolve_component_file_path(
