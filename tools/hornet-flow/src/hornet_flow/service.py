@@ -6,7 +6,7 @@ from typing import Any
 import jsonschema
 import httpx
 
-from .models import Metadata
+from .model import validate_metadata_manually
 
 
 def load_metadata(metadata_path: Path | str) -> dict[str, Any]:
@@ -14,8 +14,9 @@ def load_metadata(metadata_path: Path | str) -> dict[str, Any]:
     metadata_file = Path(metadata_path)
     with metadata_file.open("r", encoding="utf-8") as f:
         metadata = json.load(f)
+        
+    return validate_metadata_manually(metadata)
 
-    return Metadata.model_validate(metadata).model_dump(mode="json")
 
 
 def clone_repository(repo_url: str, commit_hash: str, target_dir: Path | str) -> Path:
