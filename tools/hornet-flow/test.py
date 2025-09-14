@@ -116,7 +116,7 @@ def test_walk_cad_manifest_components(repo_path: Path, tmp_path: Path):
     assert file_count > 0, "Should find at least one file"
 
 
-def validate_manifest_files(
+def _validate_manifest_files(
     manifest_path: Path, repo_path: Path
 ) -> tuple[list[str], list[str]]:
     with manifest_path.open("r", encoding="utf-8") as f:
@@ -166,9 +166,9 @@ def validate_manifest_files(
                     "marker": "main",
                 }
             },
-            marks=pytest.mark.xfail(
-                reason="Expected to fail - repository under development"
-            ),
+            # marks=pytest.mark.xfail(
+            #    reason="Expected to fail - repository under development"
+            # ),
             id="carsscenter",
         ),
     ],
@@ -198,7 +198,7 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
     # Step 3: Validate CAD files exist
     service.validate_manifest_schema(cad_manifest)
 
-    cad_existing_files, cad_missing_files = validate_manifest_files(
+    cad_existing_files, cad_missing_files = _validate_manifest_files(
         cad_manifest, repo_path
     )
 

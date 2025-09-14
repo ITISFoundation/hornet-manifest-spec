@@ -5,7 +5,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Annotated
+from typing import Annotated, Any
 
 import jsonschema
 import typer
@@ -121,9 +121,8 @@ class HornetManifestProcessor:
             valid_files: list[Path] = []
 
             for component in service.walk_manifest_components(manifest):
-                files = component.get("files", [])
-                for file_info in files:
-                    file_path = file_info.get("path", "")
+                for file_obj in component.files:
+                    file_path = file_obj.path
 
                     full_path = service.resolve_component_file_path(
                         manifest_file, file_path, repo_dir
