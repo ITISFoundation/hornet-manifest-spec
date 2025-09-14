@@ -1,0 +1,44 @@
+[project]
+name = "hornet-flow"
+version = "0.1.0"
+description = "`hornet-flow` is a Python package for consuming GitHub repositories containing **Hornet manifest files**. It parses manifests, loads CAD models, and configures simulation environments, enabling a smooth flow from repository to simulation."
+readme = "README.md"
+authors = [
+    { name = "Pedro Crespo-Valero", email = "32402063+pcrespov@users.noreply.github.com" },
+]
+requires-python = ">=3.11"
+dependencies = [
+    "httpx",
+    "jsonschema",
+    "typer>=0.14",
+]
+
+[dependency-groups]
+dev = [
+  "pytest"
+]
+lint = [
+  "ruff"
+]
+
+[project.scripts]
+hornet-flow = "hornet_flow.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.8.13,<0.9.0"]
+build-backend = "uv_build"
+
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = [
+  "missing-module-docstring",
+  "missing-class-docstring",
+  "missing-function-docstring"
+]
+
+
+[tool.ruff.lint]
+select = ["I"]  # enable isort rules
+isort.known-first-party = ["hornet_flow"]  # adjust to your own package
+isort.known-third-party = ["pydantic"]
+isort.combine-as-imports = true
