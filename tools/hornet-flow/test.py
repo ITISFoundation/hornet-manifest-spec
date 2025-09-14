@@ -188,12 +188,12 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
     cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
 
     # Both manifests should exist in this repository
-    assert cad_manifest is not None, (
-        f"CAD manifest should exist in {repo_id} repository"
-    )
-    assert sim_manifest is not None, (
-        f"SIM manifest should exist in {repo_id} repository"
-    )
+    assert (
+        cad_manifest is not None
+    ), f"CAD manifest should exist in {repo_id} repository"
+    assert (
+        sim_manifest is not None
+    ), f"SIM manifest should exist in {repo_id} repository"
 
     # Step 3: Validate CAD files exist
     service.validate_manifest_schema(cad_manifest)
@@ -208,14 +208,14 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
     )
 
     # Assert no missing files - all referenced files should exist
-    assert len(cad_missing_files) == 0, (
-        f"CAD manifest has missing files: {cad_missing_files}"
-    )
+    assert (
+        len(cad_missing_files) == 0
+    ), f"CAD manifest has missing files: {cad_missing_files}"
 
     # Assert we found files in both manifests
-    assert len(cad_existing_files) > 0, (
-        "CAD manifest should reference at least some files"
-    )
+    assert (
+        len(cad_existing_files) > 0
+    ), "CAD manifest should reference at least some files"
 
     # Step 4: Validate SIM manifest if it exists
     service.validate_manifest_schema(sim_manifest)
