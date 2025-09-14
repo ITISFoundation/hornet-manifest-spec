@@ -143,6 +143,9 @@ def validate_manifest_files(
     return existing_files, missing_files
 
 
+from hornet_flow import service
+
+
 def test_cosmiic_repository_manifest_validation(tmp_path: Path):
     """Test complete workflow with COSMIIC repository: clone, find manifests, validate files."""
     # Create metadata for COSMIIC repository
@@ -169,6 +172,9 @@ def test_cosmiic_repository_manifest_validation(tmp_path: Path):
     # Both manifests should exist in this repository
     assert cad_manifest is not None, "CAD manifest should exist in COSMIIC repository"
     assert sim_manifest is not None, "SIM manifest should exist in COSMIIC repository"
+
+    service.validate_manifest_schema(cad_manifest)
+    service.validate_manifest_schema(sim_manifest)
 
     # Step 3: Validate CAD files exist
     cad_existing_files, cad_missing_files = validate_manifest_files(
