@@ -11,14 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from hornet_flow import service
 from hornet_flow.model import Component
-from hornet_flow.service import (
-    clone_repository,
-    find_hornet_manifests,
-    load_metadata,
-    resolve_component_file_path,
-    walk_manifest_components,
-)
 
 _CURRENT_DIR = Path(
     sys.argv[0] if __name__ == "__main__" else __file__
@@ -41,7 +35,7 @@ def test_load_metadata_portal_device():
     metadata_path = Path(__file__).parent / "examples" / "portal-device-metadata.json"
 
     # Load the metadata
-    metadata = load_metadata(metadata_path)
+    metadata = service.load_metadata(metadata_path)
 
     # Verify release information
     assert "release" in metadata
@@ -61,7 +55,7 @@ def test_clone_repository(tmp_path: Path, commit_hash: str):
     repo_url = "https://github.com/ITISFoundation/hornet-manifest-spec"
 
     # Clone the repository
-    repo_path = clone_repository(repo_url, commit_hash, tmp_path / "repo")
+    repo_path = service.clone_repository(repo_url, commit_hash, tmp_path / "repo")
 
     # Verify the repository was cloned successfully
     assert repo_path.exists()
@@ -88,7 +82,7 @@ def test_walk_cad_manifest_components(repo_path: Path, tmp_path: Path):
     component_count = 0
     file_count = 0
 
-    for component in walk_manifest_components(manifest_data):
+    for component in service.walk_manifest_components(manifest_data):
         assert isinstance(component, Component)
         component_count += 1
 
@@ -127,12 +121,12 @@ def validate_manifest_files(
     missing_files = []
     existing_files = []
 
-    for component in walk_manifest_components(manifest_data):
+    for component in service.walk_manifest_components(manifest_data):
         # Now component is a Component dataclass instance
         for file_obj in component.files:
             file_path = file_obj.path
             if file_path:  # Only check non-empty paths
-                full_path = resolve_component_file_path(
+                full_path = service.resolve_component_file_path(
                     manifest_path, file_path, repo_path
                 )
                 if full_path.exists():
@@ -143,37 +137,58 @@ def validate_manifest_files(
     return existing_files, missing_files
 
 
-from hornet_flow import service
-
-
-def test_cosmiic_repository_manifest_validation(tmp_path: Path):
-    """Test complete workflow with COSMIIC repository: clone, find manifests, validate files."""
-    # Create metadata for COSMIIC repository
-    metadata = {
-        "release": {
-            "origin": "GitHub",
-            "url": "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
-            "label": "main",
-            "marker": "c04576f1a83803dec3192d8c03c731638e377fcb",  # NOTE: can also be "main"
-        }
-    }
+@pytest.mark.parametrize(
+    "repo_id,metadata",
+    [
+        pytest.param(
+            "cosmiic",
+            {
+                "release": {
+                    "origin": "GitHub",
+                    "url": "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+                    "label": "main",
+                    "marker": "c04576f1a83803dec3192d8c03c731638e377fcb",
+                }
+            },
+            id="cosmiic",
+        ),
+        pytest.param(
+            "carsscenter",
+            {
+                "release": {
+                    "origin": "GitHub",
+                    "url": "https://github.com/CARSSCenter/Sub-mm-Parylene-Cuff-Electrode",
+                    "label": "main",
+                    "marker": "main",
+                }
+            },
+            id="carsscenter",
+        ),
+    ],
+)
+def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: dict):
+    """Test complete workflow with different repositories: clone, find manifests, validate files."""
 
     # Step 1: Clone repository
     release = metadata["release"]
     repo_url = release["url"]
     commit_hash = release["marker"]
 
-    repo_path = clone_repository(repo_url, commit_hash, tmp_path / "repo")
+    repo_path = service.clone_repository(repo_url, commit_hash, tmp_path / "repo")
     assert repo_path.exists(), "Repository directory should exist"
 
     # Step 2: Find CAD manifest files
-    cad_manifest, sim_manifest = find_hornet_manifests(repo_path)
+    cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
 
     # Both manifests should exist in this repository
-    assert cad_manifest is not None, "CAD manifest should exist in COSMIIC repository"
-    assert sim_manifest is not None, "SIM manifest should exist in COSMIIC repository"
-
+    assert cad_manifest is not None, (
+        f"CAD manifest should exist in {repo_id} repository"
+    )
     service.validate_manifest_schema(cad_manifest)
+
+    assert sim_manifest is not None, (
+        f"SIM manifest should exist in {repo_id} repository"
+    )
     service.validate_manifest_schema(sim_manifest)
 
     # Step 3: Validate CAD files exist
