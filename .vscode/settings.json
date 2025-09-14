@@ -1,0 +1,5 @@
+{
+    "pylint.args": [
+        "\"--rcfile=tools/hornet-flow/pyproject.toml\""
+    ]
+}
