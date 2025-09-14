@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from . import service
+from hornet_flow import service
 
 console = Console()
 app = typer.Typer(help="Hornet Manifest Flow - Load and process hornet manifests")
