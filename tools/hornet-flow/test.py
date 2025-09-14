@@ -11,8 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from hornet_flow import service
-from hornet_flow.model import Component
+from hornet_flow import model, service
 
 _CURRENT_DIR = Path(
     sys.argv[0] if __name__ == "__main__" else __file__
@@ -27,6 +26,11 @@ def repo_path() -> Path:
 @pytest.fixture
 def package_dir(repo_path: Path) -> Path:
     return repo_path / "tools" / "hornet_flow"
+
+
+@pytest.fixture
+def schema_dir(package_dir: Path) -> Path:
+    return package_dir / "schema"
 
 
 def test_load_metadata_portal_device():
@@ -83,7 +87,7 @@ def test_walk_cad_manifest_components(repo_path: Path, tmp_path: Path):
     file_count = 0
 
     for component in service.walk_manifest_components(manifest_data):
-        assert isinstance(component, Component)
+        assert isinstance(component, model.Component)
         component_count += 1
 
         # Verify component has required fields (now it's a dataclass)

@@ -1,7 +1,7 @@
 import json
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Generator, Optional
+from typing import Any, Dict, Iterator, Optional
 
 import httpx
 import jsonschema
@@ -109,7 +109,7 @@ def validate_manifest_schema(manifest_file: Path):
 
 def walk_manifest_components(
     manifest_data: Dict[str, Any], parent_id: Optional[list[str]] = None
-) -> Generator[Component, None, None]:
+) -> Iterator[Component]:
     """Walk through manifest components and yield Component dataclass instances.
 
     Args:
