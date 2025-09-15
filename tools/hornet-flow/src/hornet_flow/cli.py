@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Annotated, Optional
@@ -56,6 +57,19 @@ def setup_logging(verbose: bool = False, quiet: bool = False) -> None:
         format="%(message)s",
         handlers=[RichHandler(console=console, markup=True)],
     )
+
+
+def handle_subprocess_error(e: subprocess.CalledProcessError, operation: str) -> None:
+    """Handle subprocess errors with detailed logging."""
+    _logger.error("❌ Failed to %s", operation)
+    _logger.error("Command: %s", " ".join(e.cmd) if e.cmd else "Unknown command")
+    _logger.error("Exit code: %s", e.returncode)
+    if e.stdout:
+        stdout = e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout
+        _logger.error("stdout: %s", stdout)
+    if e.stderr:
+        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr
+        _logger.error("stderr: %s", stderr)
 
 
 # Global version option
@@ -159,7 +173,11 @@ def workflow_run(
                         transient=True,
                     ) as progress:
                         task = progress.add_task("Cloning repository...", total=None)
-                        service.clone_repository(repo_url, commit, target_repo_path)
+                        try:
+                            service.clone_repository(repo_url, commit, target_repo_path)
+                        except subprocess.CalledProcessError as e:
+                            handle_subprocess_error(e, "clone repository")
+                            raise typer.Exit(1)
                         progress.update(
                             task, description="Repository cloned successfully"
                         )
@@ -184,7 +202,11 @@ def workflow_run(
                         transient=True,
                     ) as progress:
                         task = progress.add_task("Cloning repository...", total=None)
-                        service.clone_repository(repo_url, commit, target_repo_path)
+                        try:
+                            service.clone_repository(repo_url, commit, target_repo_path)
+                        except subprocess.CalledProcessError as e:
+                            handle_subprocess_error(e, "clone repository")
+                            raise typer.Exit(1)
                         progress.update(
                             task, description="Repository cloned successfully"
                         )
@@ -310,10 +332,8 @@ def _validate_cad_files(
 @repo_app.command("clone")
 def repo_clone(
     repo_url: Annotated[str, typer.Option("--repo-url", help="Repository URL")],
+    dest: Annotated[Optional[str], typer.Option("--dest", help="Destination path")],
     commit: Annotated[str, typer.Option("--commit", help="Commit hash")] = "main",
-    dest: Annotated[
-        Optional[str], typer.Option("--dest", help="Destination path")
-    ] = None,
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
     ] = False,
@@ -342,7 +362,10 @@ def repo_clone(
             progress.update(task, description="Repository cloned successfully")
 
         _logger.info("✅ Repository cloned successfully to %s", repo_path)
-    except Exception as e:
+    except subprocess.CalledProcessError as e:
+        handle_subprocess_error(e, "clone repository")
+        raise typer.Exit(1)
+    except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("❌ Failed to clone repository: %s", e)
         raise typer.Exit(1)
 
