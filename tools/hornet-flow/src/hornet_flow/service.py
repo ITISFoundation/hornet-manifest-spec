@@ -168,8 +168,10 @@ def resolve_component_file_path(
     return base_dir / file_path
 
 
-def show_manifest_contents(manifest: Path) -> str:
-    raise NotImplementedError
+def read_manifest_contents(manifest: Path) -> dict[str, Any]:
+    """Read and return the JSON contents of a manifest file."""
+    with manifest.open("r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def load_cad_file(cad_file: Path):

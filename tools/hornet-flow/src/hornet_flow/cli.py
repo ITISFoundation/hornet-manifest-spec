@@ -9,6 +9,7 @@ from typing import Annotated, Optional
 
 import jsonschema
 import typer
+from click import Choice
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -435,6 +436,14 @@ def manifest_validate(
 @manifest_app.command("show")
 def manifest_show(
     repo_path: Annotated[str, typer.Option("--repo-path", help="Repository path")],
+    manifest_type: Annotated[
+        str,
+        typer.Option(
+            "--type",
+            help="Manifest type to show",
+            click_type=Choice(["cad", "sim", "both"], case_sensitive=False),
+        ),
+    ] = "both",
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
     ] = False,
@@ -447,22 +456,45 @@ def manifest_show(
 
     _logger.info("📋 Showing manifests")
     _logger.info("📁 Repository: %s", repo_path)
+    _logger.info("🔍 Type: %s", manifest_type)
 
     try:
         repo_dir = Path(repo_path)
         cad_manifest, sim_manifest = service.find_hornet_manifests(repo_dir)
 
-        if not cad_manifest and not sim_manifest:
+        # Check if requested manifests exist
+        if manifest_type.lower() in ["cad", "both"] and not cad_manifest:
+            if manifest_type.lower() == "cad":
+                _logger.error("❌ No CAD manifest found")
+                raise typer.Exit(os.EX_NOINPUT)
+            else:
+                _logger.warning("⚠️  No CAD manifest found")
+
+        if manifest_type.lower() in ["sim", "both"] and not sim_manifest:
+            if manifest_type.lower() == "sim":
+                _logger.error("❌ No SIM manifest found")
+                raise typer.Exit(os.EX_NOINPUT)
+            else:
+                _logger.warning("⚠️  No SIM manifest found")
+
+        # If both requested but neither found
+        if manifest_type.lower() == "both" and not cad_manifest and not sim_manifest:
             _logger.error("❌ No hornet manifest files found")
             raise typer.Exit(os.EX_NOINPUT)
 
-        if cad_manifest:
+        # Show CAD manifest if requested and exists
+        if manifest_type.lower() in ["cad", "both"] and cad_manifest:
             _logger.info("📄 CAD Manifest: %s", cad_manifest)
-            service.show_manifest_contents(cad_manifest)
+            cad_contents = service.read_manifest_contents(cad_manifest)
+            console.print_json(data=cad_contents)
+            if manifest_type.lower() == "both" and sim_manifest:
+                console.print()  # Add blank line between manifests
 
-        if sim_manifest:
+        # Show SIM manifest if requested and exists
+        if manifest_type.lower() in ["sim", "both"] and sim_manifest:
             _logger.info("📄 SIM Manifest: %s", sim_manifest)
-            service.show_manifest_contents(sim_manifest)
+            sim_contents = service.read_manifest_contents(sim_manifest)
+            console.print_json(data=sim_contents)
 
     except Exception as e:
         _logger.error("❌ Failed to show manifests: %s", e)
