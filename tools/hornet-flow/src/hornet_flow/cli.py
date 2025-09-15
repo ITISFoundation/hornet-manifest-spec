@@ -1,8 +1,9 @@
-import json
 import logging
 import os
+import platform
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Annotated, Optional
@@ -12,8 +13,11 @@ import typer
 from click import Choice
 from rich.console import Console
 from rich.logging import RichHandler
+from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
 
+import hornet_flow
 from hornet_flow import service
 
 console = Console()
@@ -44,7 +48,7 @@ app.add_typer(manifest_app, name="manifest")
 app.add_typer(cad_app, name="cad")
 
 
-def setup_logging(verbose: bool = False, quiet: bool = False) -> None:
+def _setup_logging(verbose: bool = False, quiet: bool = False) -> None:
     """Configure logging with RichHandler."""
     if quiet:
         log_level = logging.ERROR
@@ -60,7 +64,7 @@ def setup_logging(verbose: bool = False, quiet: bool = False) -> None:
     )
 
 
-def handle_subprocess_error(e: subprocess.CalledProcessError, operation: str) -> None:
+def _handle_subprocess_error(e: subprocess.CalledProcessError, operation: str) -> None:
     """Handle subprocess errors with detailed logging."""
     _logger.error("❌ Failed to %s", operation)
     _logger.error("Command: %s", " ".join(e.cmd) if e.cmd else "Unknown command")
@@ -85,6 +89,115 @@ def main(
 ):
     """Hornet Manifest Flow - Load and process hornet manifests"""
     _ = version
+
+
+@app.command("info")
+def show_info(
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Show additional details")
+    ] = False,
+) -> None:
+    """Show current configuration and system information."""
+
+    console.print()
+    console.print(Panel.fit("🔧 Hornet Flow Configuration", style="bold blue"))
+
+    # Version information
+    version_table = Table(show_header=False, box=None, padding=(0, 1))
+    version_table.add_column("Property", style="cyan", min_width=20)
+    version_table.add_column("Value", style="white")
+
+    version_table.add_row("Version", f"v{__version__}")
+    version_table.add_row("Python", f"{sys.version.split()[0]}")
+    version_table.add_row("Platform", platform.platform())
+
+    console.print()
+    console.print("📋 Version Information")
+    console.print(version_table)
+
+    # Plugin information
+    try:
+        from hornet_flow.plugins import discover_plugins, get_default_plugin
+
+        plugins = discover_plugins()
+        default_plugin = get_default_plugin()
+
+        console.print()
+        console.print("🔌 Available Plugins")
+
+        if plugins:
+            plugin_table = Table(show_header=True, box=None, padding=(0, 1))
+            plugin_table.add_column("Name", style="cyan", min_width=15)
+            plugin_table.add_column("Status", style="white", min_width=10)
+            plugin_table.add_column("Description", style="dim")
+
+            for plugin_name, plugin_class in plugins.items():
+                status = "✅ Default" if plugin_name == default_plugin else "Available"
+
+                # Try to get plugin description
+                try:
+                    description = plugin_class.__doc__ or "No description available"
+                    if description:
+                        description = description.split("\n")[0].strip()
+                except Exception:  # pylint: disable=broad-exception-caught
+                    description = "No description available"
+
+                plugin_table.add_row(plugin_name, status, description)
+
+            console.print(plugin_table)
+        else:
+            console.print("  [red]No plugins found[/red]")
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        _logger.exception("Error loading plugins")
+        console.print(f"  [red]Error loading plugins: {e}[/red]")
+
+    # Configuration details (verbose mode)
+    if verbose:
+        console.print()
+        console.print("⚙️  Configuration Details")
+
+        config_table = Table(show_header=False, box=None, padding=(0, 1))
+        config_table.add_column("Setting", style="cyan", min_width=25)
+        config_table.add_column("Value", style="white")
+
+        # Show Python path info
+        package_path = Path(hornet_flow.__file__).parent
+        config_table.add_row("Package Location", str(package_path))
+
+        # Show plugin directory
+        plugin_dir = package_path / "plugins"
+        config_table.add_row("Plugin Directory", str(plugin_dir))
+        config_table.add_row("Plugin Directory Exists", str(plugin_dir.exists()))
+
+        # Show temp directory
+        temp_dir = tempfile.gettempdir()
+        config_table.add_row("Temp Directory", temp_dir)
+
+        console.print(config_table)
+
+        # Show environment variables if relevant
+        console.print()
+        console.print("🌍 Environment")
+        env_table = Table(show_header=False, box=None, padding=(0, 1))
+        env_table.add_column("Variable", style="cyan", min_width=25)
+        env_table.add_column("Value", style="dim")
+
+        # Check for relevant environment variables
+        env_vars = ["HOME", "TMPDIR", "PATH"]
+        for var in env_vars:
+            value = os.environ.get(var, "Not set")
+            # Truncate long PATH values
+            if var == "PATH" and len(value) > 60:
+                value = value[:57] + "..."
+            env_table.add_row(var, value)
+
+        console.print(env_table)
+
+    console.print()
+    console.print("💡 Use [cyan]--verbose[/cyan] for more details")
+    console.print("💡 Use [cyan]hornet-flow --help[/cyan] to see all commands")
+    console.print()
 
 
 # Workflow commands
@@ -132,7 +245,7 @@ def workflow_run(
 
     Can be run using a metadata file, inline repo parameters, or an existing repo path.
     """
-    setup_logging(verbose, quiet)
+    _setup_logging(verbose, quiet)
 
     # Validation: metadata_file cannot be combined with repo_url/commit
     if metadata_file and (repo_url or commit != "main"):
@@ -189,7 +302,7 @@ def workflow_run(
                         try:
                             service.clone_repository(repo_url, commit, target_repo_path)
                         except subprocess.CalledProcessError as e:
-                            handle_subprocess_error(e, "clone repository")
+                            _handle_subprocess_error(e, "clone repository")
                             raise typer.Exit(1)
                         progress.update(
                             task, description="Repository cloned successfully"
@@ -220,7 +333,7 @@ def workflow_run(
                         try:
                             service.clone_repository(repo_url, commit, target_repo_path)
                         except subprocess.CalledProcessError as e:
-                            handle_subprocess_error(e, "clone repository")
+                            _handle_subprocess_error(e, "clone repository")
                             raise typer.Exit(1)
                         progress.update(
                             task, description="Repository cloned successfully"
@@ -396,42 +509,6 @@ def _process_manifests(
         )
 
 
-def _validate_cad_files(
-    cad_manifest_path: Path, repo_path: Path, fail_fast: bool
-) -> list[Path]:
-    """Validate CAD files exist and return list of valid files."""
-    try:
-        with cad_manifest_path.open("r", encoding="utf-8") as f:
-            manifest = json.load(f)
-
-        valid_files: list[Path] = []
-
-        for component in service.walk_manifest_components(manifest):
-            for file_obj in component.files:
-                file_path = file_obj.path
-
-                full_path = service.resolve_component_file_path(
-                    cad_manifest_path, file_path, repo_path
-                )
-
-                if full_path.exists():
-                    valid_files.append(full_path)
-                    _logger.debug("Found file: %s", file_path)
-                else:
-                    _logger.error("Missing file referenced in manifest: %s", full_path)
-                    if fail_fast:
-                        raise typer.Exit(os.EX_DATAERR)
-
-        _logger.info("Validated %d CAD files", len(valid_files))
-        return valid_files
-
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        _logger.error("Failed to validate CAD files: %s", e)
-        if fail_fast:
-            raise typer.Exit(1)
-        return []
-
-
 # Repository commands
 @repo_app.command("clone")
 def repo_clone(
@@ -446,7 +523,7 @@ def repo_clone(
     ] = False,
 ) -> None:
     """Clone a repository and checkout a specific commit."""
-    setup_logging(verbose, quiet)
+    _setup_logging(verbose, quiet)
 
     _logger.info("📥 Cloning repository")
     _logger.info("🔗 Repository: %s", repo_url)
@@ -467,7 +544,7 @@ def repo_clone(
 
         _logger.info("✅ Repository cloned successfully to %s", repo_path)
     except subprocess.CalledProcessError as e:
-        handle_subprocess_error(e, "clone repository")
+        _handle_subprocess_error(e, "clone repository")
         raise typer.Exit(1)
     except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("❌ Failed to clone repository: %s", e)
@@ -486,7 +563,7 @@ def manifest_validate(
     ] = False,
 ) -> None:
     """Validate hornet manifests against their schemas."""
-    setup_logging(verbose, quiet)
+    _setup_logging(verbose, quiet)
 
     _logger.info("✅ Validating manifests")
     _logger.info("📁 Repository: %s", repo_path)
@@ -531,7 +608,7 @@ def manifest_validate(
     except jsonschema.ValidationError as e:
         _logger.error("❌ Schema validation failed: %s", e.message)
         raise typer.Exit(os.EX_DATAERR)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("❌ Validation failed: %s", e)
         raise typer.Exit(os.EX_DATAERR)
 
@@ -555,7 +632,7 @@ def manifest_show(
     ] = False,
 ) -> None:
     """Display hornet manifest contents."""
-    setup_logging(verbose, quiet)
+    _setup_logging(verbose, quiet)
 
     _logger.info("📋 Showing manifests")
     _logger.info("📁 Repository: %s", repo_path)
@@ -599,7 +676,7 @@ def manifest_show(
             sim_contents = service.read_manifest_contents(sim_manifest)
             console.print_json(data=sim_contents)
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("❌ Failed to show manifests: %s", e)
         raise typer.Exit(os.EX_DATAERR)
 
@@ -629,7 +706,7 @@ def cad_load(
     ] = False,
 ) -> None:
     """Load CAD files referenced in the manifest using plugins."""
-    setup_logging(verbose, quiet)
+    _setup_logging(verbose, quiet)
 
     _logger.info("🔧 Loading CAD files")
     _logger.info("📁 Repository: %s", repo_path)
@@ -657,7 +734,7 @@ def cad_load(
             cad_manifest, repo_dir, fail_fast, plugin, type_filter, name_filter
         )
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("❌ Failed to load CAD files: %s", e)
         raise typer.Exit(os.EX_DATAERR)
 

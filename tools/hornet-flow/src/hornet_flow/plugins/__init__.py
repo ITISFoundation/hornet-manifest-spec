@@ -4,11 +4,11 @@ import importlib
 from pathlib import Path
 from typing import Dict, Type
 
-from .base import HornetFlowPlugin
 
-
-def discover_plugins() -> Dict[str, Type[HornetFlowPlugin]]:
+def discover_plugins() -> Dict[str, Type]:
     """Discover all available plugins in the plugins directory."""
+    from .base import HornetFlowPlugin
+
     plugins = {}
     plugin_dir = Path(__file__).parent
 
@@ -17,20 +17,27 @@ def discover_plugins() -> Dict[str, Type[HornetFlowPlugin]]:
         try:
             module = importlib.import_module(module_name)
             for attr_name in dir(module):
-                attr_obj = getattr(module, attr_name)
+                attr = getattr(module, attr_name)
                 if (
-                    isinstance(attr_obj, type)
-                    and issubclass(attr_obj, HornetFlowPlugin)
-                    and attr_obj != HornetFlowPlugin
+                    isinstance(attr, type)
+                    and issubclass(attr, HornetFlowPlugin)
+                    and attr != HornetFlowPlugin
                 ):
-                    plugins[attr_obj.name] = attr_obj
+                    # Create an instance to get the actual name value
+                    try:
+                        plugin_instance = attr()
+                        plugin_name = plugin_instance.name
+                        plugins[plugin_name] = attr
+                    except Exception:
+                        # If instantiation fails, skip this plugin
+                        continue
         except ImportError:
             continue
 
     return plugins
 
 
-def get_plugin(plugin_name: str) -> Type[HornetFlowPlugin]:
+def get_plugin(plugin_name: str) -> Type:
     """Get plugin class by name."""
     plugins = discover_plugins()
     if plugin_name not in plugins:
