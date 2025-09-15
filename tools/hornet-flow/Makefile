@@ -76,7 +76,7 @@ install-all: venv
 # Example runs
 run-example:
 	@echo "Running workflow with example metadata..."
-	uv run hornet-flow workflow run --metadata-file examples/portal-device-metadata.json --work-dir /tmp/hornet-flow --verbose
+	uv run hornet-flow workflow run --metadata-file examples/portal-device-metadata.json --work-dir /tmp/hornet-flow --verbose --cleanup
 
 run-clone-example:
 	@echo "Running repo clone example..."

@@ -66,7 +66,7 @@ def load_component(
                 else:
                     _logger.warning("File not found: %s", file_path)
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 _logger.error("Error importing %s: %s", file_path, str(e))
 
     if "components" in component:
@@ -101,7 +101,7 @@ def load_cad_manifest(
             )
             if component_group is not None:
                 loaded_components.append(component_group)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             _logger.error(
                 "Error loading component %s: %s", component.get("id", "unknown"), str(e)
             )
@@ -110,7 +110,7 @@ def load_cad_manifest(
     return loaded_components
 
 
-def zoom_loaded_components(components: list[XCoreModeling.EntityGroup]) -> None:
+def _zoom_loaded_components(components: list[XCoreModeling.EntityGroup]) -> None:
     from s4l_v1.renderer import ZoomToEntity
 
     if not components:
@@ -120,22 +120,25 @@ def zoom_loaded_components(components: list[XCoreModeling.EntityGroup]) -> None:
     ZoomToEntity(components, zoom_factor=1.2)
 
 
-def load_manifest_from_file(manifest_path: Path) -> dict[str, Any]:
+def _load_manifest_from_file(manifest_path: Path) -> dict[str, Any]:
     if not manifest_path.exists():
         raise FileNotFoundError(f"Manifest file not found at {manifest_path}")
 
     try:
-        with open(manifest_path) as f:
+        with open(manifest_path, encoding="utf-8") as f:
             return json.load(f)
+
     except json.JSONDecodeError as e:
-        raise ValueError(f"Error parsing JSON from {manifest_path}: {e}")
+        msg = f"Error parsing JSON from {manifest_path}: {e}"
+        raise ValueError(msg) from e
     except Exception as e:
-        raise RuntimeError(f"Error reading manifest file {manifest_path}: {e}")
+        msg = f"Error reading manifest file {manifest_path}: {e}"
+        raise RuntimeError(msg) from e
 
 
 def main(
     manifest_file: str,
-    script_dir: Path | None = None,
+    work_dir: Path | None = None,
     type_filter: str | None = None,
     name_filter: str | None = None,
 ) -> None:
@@ -149,17 +152,16 @@ def main(
 
         _logger.info("Using active model: %s", model.Name)
 
-        if script_dir is None:
-            script_dir = Path(__file__).parent
-        base_path = script_dir
+        if work_dir is None:
+            work_dir = Path(__file__).parent
 
-        _logger.info("Base path for file resolution: %s", base_path)
+        _logger.info("Working path for file resolution: %s", work_dir)
 
-        manifest_path = base_path / manifest_file
-        manifest = load_manifest_from_file(manifest_path)
+        manifest_path = work_dir / manifest_file
+        manifest = _load_manifest_from_file(manifest_path)
 
         loaded_components = load_cad_manifest(
-            manifest, str(base_path), type_filter, name_filter
+            manifest, str(work_dir), type_filter, name_filter
         )
 
         if loaded_components:
@@ -171,6 +173,8 @@ def main(
                 "Created main group '%s' containing all loaded components",
                 main_group.Name,
             )
+
+            _zoom_loaded_components(main_group)
 
     except Exception as e:
         _logger.error("Fatal error: %s", str(e))
