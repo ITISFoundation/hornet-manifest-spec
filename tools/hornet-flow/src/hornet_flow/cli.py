@@ -87,8 +87,8 @@ def workflow_run(
         Optional[str], typer.Option("--repo-path", help="Path to already-cloned repo")
     ] = None,
     work_dir: Annotated[
-        str, typer.Option("--work-dir", help="Working directory for clones")
-    ] = "/tmp",
+        Optional[str], typer.Option("--work-dir", help="Working directory for clones")
+    ] = None,
     fail_fast: Annotated[
         bool, typer.Option("--fail-fast", help="Stop on first error")
     ] = False,
@@ -138,40 +138,71 @@ def workflow_run(
         if repo_path:
             _logger.info("📁 Using existing repo: %s", repo_path)
             target_repo_path = Path(repo_path)
+            _process_manifests(target_repo_path, fail_fast)
         else:
             assert repo_url  # nosec
             _logger.info("🔗 Repository URL: %s", repo_url)
             _logger.info("📌 Commit: %s", commit)
 
             # Clone repository
-            work_path = Path(work_dir)
-            with tempfile.TemporaryDirectory(dir=work_path) as temp_dir:
+            work_path = Path(work_dir or tempfile.gettempdir())
+            if cleanup:
+                # Use temporary directory for automatic cleanup
+                with tempfile.TemporaryDirectory(dir=work_path) as temp_dir:
+                    temp_path = Path(temp_dir)
+                    target_repo_path = temp_path / "repo"
+
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[progress.description]{task.description}"),
+                        console=console,
+                        transient=True,
+                    ) as progress:
+                        task = progress.add_task("Cloning repository...", total=None)
+                        service.clone_repository(repo_url, commit, target_repo_path)
+                        progress.update(
+                            task, description="Repository cloned successfully"
+                        )
+
+                    _logger.info("Successfully cloned repository")
+
+                    # Process manifests within the temporary directory context
+                    _process_manifests(target_repo_path, fail_fast)
+                    # Automatic cleanup happens when exiting the context
+                    _logger.info("🧹 Automatically cleaning up temporary repository")
+            else:
+                # Create persistent directory for manual cleanup
+                temp_dir = tempfile.mkdtemp(dir=work_path)
                 temp_path = Path(temp_dir)
                 target_repo_path = temp_path / "repo"
 
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                    transient=True,
-                ) as progress:
-                    task = progress.add_task("Cloning repository...", total=None)
-                    service.clone_repository(repo_url, commit, target_repo_path)
-                    progress.update(task, description="Repository cloned successfully")
+                try:
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[progress.description]{task.description}"),
+                        console=console,
+                        transient=True,
+                    ) as progress:
+                        task = progress.add_task("Cloning repository...", total=None)
+                        service.clone_repository(repo_url, commit, target_repo_path)
+                        progress.update(
+                            task, description="Repository cloned successfully"
+                        )
 
-                _logger.info("Successfully cloned repository")
+                    _logger.info("Successfully cloned repository")
 
-                # Process manifests
-                _process_manifests(target_repo_path, fail_fast)
+                    # Process manifests
+                    _process_manifests(target_repo_path, fail_fast)
 
-                if cleanup:
-                    _logger.info("🧹 Cleaning up repository")
-                    shutil.rmtree(target_repo_path)
+                    _logger.info("Repository kept at: %s", target_repo_path)
+                except Exception:
+                    # Clean up on error even if cleanup=False
+                    if temp_path.exists():
+                        shutil.rmtree(temp_path)
+                        _logger.info("🧹 Cleaned up repository after error")
+                    raise
 
-        if repo_path:
-            _process_manifests(target_repo_path, fail_fast)
-
-    except Exception as e: # pylint: disable=broad-exception-caught
+    except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("Workflow failed: %s", e)
         if fail_fast:
             raise typer.Exit(1)
@@ -268,7 +299,7 @@ def _validate_cad_files(
         _logger.info("Validated %d CAD files", len(valid_files))
         return valid_files
 
-    except Exception as e: # pylint: disable=broad-exception-caught
+    except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("Failed to validate CAD files: %s", e)
         if fail_fast:
             raise typer.Exit(1)
@@ -280,7 +311,9 @@ def _validate_cad_files(
 def repo_clone(
     repo_url: Annotated[str, typer.Option("--repo-url", help="Repository URL")],
     commit: Annotated[str, typer.Option("--commit", help="Commit hash")] = "main",
-    dest: Annotated[str, typer.Option("--dest", help="Destination path")] = "/tmp",
+    dest: Annotated[
+        Optional[str], typer.Option("--dest", help="Destination path")
+    ] = None,
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
     ] = False,
@@ -297,7 +330,7 @@ def repo_clone(
     _logger.info("📁 Destination: %s", dest)
 
     try:
-        dest_path = Path(dest)
+        dest_path = Path(dest or tempfile.gettempdir())
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
