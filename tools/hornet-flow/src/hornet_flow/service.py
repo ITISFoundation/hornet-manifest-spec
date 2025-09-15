@@ -168,4 +168,16 @@ def resolve_component_file_path(
     return base_dir / file_path
 
 
-# TODO: validate that references in sim-manifest.json exist in cad-manifest.json
+def show_manifest_contents(manifest: Path) -> str:
+    raise NotImplementedError
+
+
+def load_cad_file(cad_file: Path):
+    raise NotImplementedError
+
+
+def validate_sim_manifest_references(
+    sim_manifest: Path, cad_components: Iterator[Component]
+):
+    """Validate that all references in sim-manifest.json exist in cad-manifest.json."""
+    raise NotImplementedError

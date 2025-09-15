@@ -1,11 +1,10 @@
 import json
 import logging
+import os
 import shutil
-import subprocess
-import sys
 import tempfile
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Optional
 
 import jsonschema
 import typer
@@ -16,240 +15,80 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from hornet_flow import service
 
 console = Console()
+
+__version__ = "0.1.0"
+
+
+def version_callback(value: bool):
+    if value:
+        console.print(f"hornet-flow version {__version__}")
+        raise typer.Exit()
+
+
 app = typer.Typer(help="Hornet Manifest Flow - Load and process hornet manifests")
 
 _logger = logging.getLogger(__name__)
 
+# Create sub-apps for each resource
+workflow_app = typer.Typer(help="Workflow operations")
+repo_app = typer.Typer(help="Repository operations")
+manifest_app = typer.Typer(help="Manifest operations")
+cad_app = typer.Typer(help="CAD operations")
 
-class HornetManifestProcessor:
-    """CLI processor for loading and processing hornet manifests with logging and error handling."""
-
-    def __init__(self, fail_fast: bool = False) -> None:
-        self.fail_fast = fail_fast
-        self.errors: list[str] = []
-        self.warnings: list[str] = []
-
-    def load_metadata(self, metadata_path: Path | str) -> dict[str, Any]:
-        """Load and parse the metadata JSON file from local path."""
-        try:
-            metadata = service.load_metadata(metadata_path)
-            _logger.info("Loaded metadata from %s", metadata_path)
-            return metadata
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Failed to load metadata from {metadata_path}: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            return {}
-
-    def clone_repository(
-        self, repo_url: str, commit_hash: str, target_dir: Path | str
-    ) -> str:
-        """Clone repository with depth 1 and checkout specific commit."""
-        try:
-            target_path = Path(target_dir)
-            repo_path = target_path / "repo"
-
-            _logger.info("Cloning repository: %s", repo_url)
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-                transient=True,
-            ) as progress:
-                task = progress.add_task("Cloning repository...", total=None)
-                service.clone_repository(repo_url, commit_hash, repo_path)
-                progress.update(task, description="Repository cloned successfully")
-
-            _logger.info("Successfully cloned repository at commit %s", commit_hash[:8])
-
-            return str(repo_path)
-
-        except subprocess.CalledProcessError as e:
-            error_msg = f"Failed to clone repository {repo_url}: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            return ""
-
-    def find_hornet_manifests(
-        self, repo_path: Path | str
-    ) -> tuple[Path | None, Path | None]:
-        """Look for .hornet/cad_manifest.json and .hornet/sim_manifest.json."""
-
-        cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
-
-        if cad_manifest:
-            _logger.info("Found CAD manifest: %s", cad_manifest)
-        if sim_manifest:
-            _logger.info("Found SIM manifest: %s", sim_manifest)
-
-        if not cad_manifest and not sim_manifest:
-            _logger.error("No hornet manifest files found in repository")
-            self._handle_error("No hornet manifest files found in repository")
-
-        return cad_manifest, sim_manifest
-
-    def validate_manifest_schema(self, manifest_path: Path | str) -> bool:
-        """Extract $schema URL from manifest file and validate using jsonschema."""
-        try:
-            service.validate_manifest_schema(Path(manifest_path))
-            _logger.info("Schema validation successful for %s", manifest_path)
-            return True
-
-        except jsonschema.ValidationError as e:
-            error_msg = f"Schema validation failed for {manifest_path}: {e.message}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            return False
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Failed to validate schema for {manifest_path}: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            return False
-
-    def validate_cad_files_exist(
-        self, cad_manifest_path: Path | str, repo_path: Path | str
-    ) -> list[Path]:
-        """Parse CAD manifest JSON tree and verify referenced files exist."""
-        try:
-            manifest_file = Path(cad_manifest_path)
-            repo_dir = Path(repo_path)
-
-            with manifest_file.open("r", encoding="utf-8") as f:
-                manifest = json.load(f)
-
-            valid_files: list[Path] = []
-
-            for component in service.walk_manifest_components(manifest):
-                for file_obj in component.files:
-                    file_path = file_obj.path
-
-                    full_path = service.resolve_component_file_path(
-                        manifest_file, file_path, repo_dir
-                    )
-
-                    if full_path.exists():
-                        valid_files.append(full_path)
-                        _logger.debug("Found file: %s", file_path)
-                    else:
-                        error_msg = f"Missing file referenced in manifest: {full_path}"
-                        _logger.error(error_msg)
-                        self._handle_error(error_msg)
-
-            _logger.info("Validated %d CAD files", len(valid_files))
-            return valid_files
-
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Failed to validate CAD files from {cad_manifest_path}: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            return []
-
-    def load_cad_file(self, file_path: Path) -> None:
-        """Mock function that prints file path for now."""
-        _logger.debug("Loading CAD file: %s", file_path)
-        # TODO: Implement actual CAD file loading logic here
-
-    def cleanup_repository(self, repo_path: Path | str) -> None:
-        """Explicitly remove cloned repository directory."""
-        try:
-            repo_dir = Path(repo_path)
-            if repo_dir.exists():
-                shutil.rmtree(repo_dir)
-                _logger.info("Cleaned up repository at %s", repo_dir)
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Failed to cleanup repository {repo_path}: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-
-    def process_hornet_manifest(
-        self, metadata_path: Path | str, work_dir: Path | str, cleanup: bool = False
-    ) -> dict[str, Any]:
-        """Main orchestration function that calls all steps in sequence."""
-        results: dict[str, Any] = {
-            "success": False,
-            "errors": [],
-            "warnings": [],
-            "processed_files": [],
-        }
-
-        try:
-            # Step 1: Load metadata
-            metadata = self.load_metadata(metadata_path)
-            if not metadata:
-                return results
-
-            # Step 2: Extract release info
-            release = metadata.get("release", {})
-            repo_url = release.get("url", "")
-            commit_hash = release.get("marker", "")
-
-            if not repo_url or not commit_hash:
-                error_msg = "Missing repository URL or commit hash in metadata"
-                _logger.error(error_msg)
-                self._handle_error(error_msg)
-                return results
-
-            # Create working directory
-            work_path = Path(work_dir)
-            with tempfile.TemporaryDirectory(dir=work_path) as temp_dir:
-                temp_path = Path(temp_dir)
-
-                # Step 1: Clone repository
-                repo_path = self.clone_repository(repo_url, commit_hash, temp_path)
-                if not repo_path:
-                    return results
-
-                # Step 2: Find hornet manifests (check both repo and extracted content)
-                cad_manifest, sim_manifest = self.find_hornet_manifests(repo_path)
-
-                # Step 3: Validate manifests against schemas
-                if cad_manifest and not self.validate_manifest_schema(cad_manifest):
-                    if self.fail_fast:
-                        return results
-
-                if sim_manifest and not self.validate_manifest_schema(sim_manifest):
-                    if self.fail_fast:
-                        return results
-
-                # Step 4: Validate and load CAD files
-                if cad_manifest:
-                    valid_files = self.validate_cad_files_exist(cad_manifest, repo_path)
-                    for file_path in valid_files:
-                        self.load_cad_file(file_path)
-                        results["processed_files"].append(file_path)
-
-                # Step 5: Cleanup if requested
-                if cleanup:
-                    self.cleanup_repository(repo_path)
-
-            results["success"] = len(self.errors) == 0 or not self.fail_fast
-            results["errors"] = self.errors
-            results["warnings"] = self.warnings
-
-            return results
-
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Unexpected error during processing: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            results["errors"] = self.errors
-            return results
-
-    def _handle_error(self, error_msg: str) -> None:
-        """Handle errors based on fail_fast mode."""
-        _logger.error(error_msg)
-        self.errors.append(error_msg)
-        if self.fail_fast:
-            sys.exit(1)
+# Add sub-apps to main app
+app.add_typer(workflow_app, name="workflow")
+app.add_typer(repo_app, name="repo")
+app.add_typer(manifest_app, name="manifest")
+app.add_typer(cad_app, name="cad")
 
 
-@app.command()
+def setup_logging(verbose: bool = False, quiet: bool = False) -> None:
+    """Configure logging with RichHandler."""
+    if quiet:
+        log_level = logging.ERROR
+    elif verbose:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+
+    logging.basicConfig(
+        level=log_level,
+        format="%(message)s",
+        handlers=[RichHandler(console=console, markup=True)],
+    )
+
+
+# Global version option
+@app.callback()
 def main(
-    metadata_path: Annotated[str, typer.Argument(help="Path to metadata JSON file")],
+    version: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--version", callback=version_callback, help="Show version and exit"
+        ),
+    ] = None,
+):
+    """Hornet Manifest Flow - Load and process hornet manifests"""
+    _ = version
+
+
+# Workflow commands
+@workflow_app.command("run")
+def workflow_run(
+    metadata_file: Annotated[
+        Optional[str],
+        typer.Option("--metadata-file", help="Path to metadata JSON file"),
+    ] = None,
+    repo_url: Annotated[
+        Optional[str], typer.Option("--repo-url", help="Repository URL")
+    ] = None,
+    commit: Annotated[str, typer.Option("--commit", help="Commit hash")] = "main",
+    repo_path: Annotated[
+        Optional[str], typer.Option("--repo-path", help="Path to already-cloned repo")
+    ] = None,
     work_dir: Annotated[
-        str, typer.Option("/tmp", "--work-dir", help="Working directory for clones")
-    ],
+        str, typer.Option("--work-dir", help="Working directory for clones")
+    ] = "/tmp",
     fail_fast: Annotated[
         bool, typer.Option("--fail-fast", help="Stop on first error")
     ] = False,
@@ -264,52 +103,355 @@ def main(
     ] = False,
 ) -> None:
     """
-    Hornet Manifest Flow
+    Run a complete workflow to process hornet manifests.
 
-    Loads metadata from a JSON file, clones a git repository,
-    and loads CAD files according to the manifest specifications.
+    Can be run using a metadata file, inline repo parameters, or an existing repo path.
     """
-    # Configure logging
-    if quiet:
-        log_level = logging.ERROR
-    elif verbose:
-        log_level = logging.DEBUG
-    else:
-        log_level = logging.INFO
+    setup_logging(verbose, quiet)
 
-    logging.basicConfig(
-        level=log_level,
-        format="%(message)s",
-        handlers=[RichHandler(console=console, markup=True)],
-    )
+    # Validation: metadata_file cannot be combined with repo_url/commit
+    if metadata_file and (repo_url or commit != "main"):
+        _logger.error("--metadata-file cannot be combined with --repo-url or --commit")
+        raise typer.Exit(os.EX_USAGE)
 
-    console.print("[bold blue]🚀 Hornet Manifest Flow[/bold blue]")
-    console.print(f"Processing metadata: [cyan]{metadata_path}[/cyan]")
+    # At least one input method must be specified
+    if not metadata_file and not repo_url and not repo_path:
+        _logger.error("Must specify either --metadata-file, --repo-url, or --repo-path")
+        raise typer.Exit(os.EX_USAGE)
 
-    processor = HornetManifestProcessor(fail_fast=fail_fast)
-    results = processor.process_hornet_manifest(
-        Path(metadata_path), Path(work_dir), cleanup=cleanup
-    )
+    _logger.info("🚀 Running Hornet Workflow")
 
-    # Print summary
-    status = (
-        "[green]✓ completed[/green]" if results["success"] else "[red]✗ failed[/red]"
-    )
-    console.print(f"\n[bold]Processing {status}[/bold]")
-    console.print(f"📁 Files processed: [cyan]{len(results['processed_files'])}[/cyan]")
-    console.print(f"❌ Errors: [red]{len(results['errors'])}[/red]")
-    console.print(f"⚠️  Warnings: [yellow]{len(results['warnings'])}[/yellow]")
+    try:
+        if metadata_file:
+            _logger.info("📄 Loading metadata from: %s", metadata_file)
+            metadata = service.load_metadata(metadata_file)
 
-    if results["errors"]:
-        console.print(f"\n[bold red]Errors ({len(results['errors'])}):[/bold red]")
-        for error in results["errors"]:
-            console.print(f"  [red]•[/red] {error}")
+            # Extract release info
+            release = metadata.get("release", {})
+            repo_url = release.get("url", "")
+            commit = release.get("marker", "")
 
-    if results["warnings"]:
-        console.print(
-            f"\n[bold yellow]Warnings ({len(results['warnings'])}):[/bold yellow]"
-        )
-        for warning in results["warnings"]:
-            console.print(f"  [yellow]•[/yellow] {warning}")
+            if not repo_url or not commit:
+                _logger.error("Missing repository URL or commit hash in metadata")
+                raise typer.Exit(os.EX_USAGE)
 
-    raise typer.Exit(0 if results["success"] else 1)
+        if repo_path:
+            _logger.info("📁 Using existing repo: %s", repo_path)
+            target_repo_path = Path(repo_path)
+        else:
+            assert repo_url  # nosec
+            _logger.info("🔗 Repository URL: %s", repo_url)
+            _logger.info("📌 Commit: %s", commit)
+
+            # Clone repository
+            work_path = Path(work_dir)
+            with tempfile.TemporaryDirectory(dir=work_path) as temp_dir:
+                temp_path = Path(temp_dir)
+                target_repo_path = temp_path / "repo"
+
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                    transient=True,
+                ) as progress:
+                    task = progress.add_task("Cloning repository...", total=None)
+                    service.clone_repository(repo_url, commit, target_repo_path)
+                    progress.update(task, description="Repository cloned successfully")
+
+                _logger.info("Successfully cloned repository")
+
+                # Process manifests
+                _process_manifests(target_repo_path, fail_fast)
+
+                if cleanup:
+                    _logger.info("🧹 Cleaning up repository")
+                    shutil.rmtree(target_repo_path)
+
+        if repo_path:
+            _process_manifests(target_repo_path, fail_fast)
+
+    except Exception as e: # pylint: disable=broad-exception-caught
+        _logger.error("Workflow failed: %s", e)
+        if fail_fast:
+            raise typer.Exit(1)
+
+
+def _process_manifests(repo_path: Path, fail_fast: bool) -> None:
+    """Process manifests found in repository."""
+    # Find hornet manifests
+    _logger.info("🔍 Finding hornet manifests...")
+    cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
+
+    if cad_manifest:
+        _logger.info("Found CAD manifest: %s", cad_manifest)
+    if sim_manifest:
+        _logger.info("Found SIM manifest: %s", sim_manifest)
+
+    if not cad_manifest and not sim_manifest:
+        _logger.error("No hornet manifest files found in repository")
+        if fail_fast:
+            raise typer.Exit(os.EX_NOINPUT)
+        return
+
+    # Validate manifests
+    _logger.info("✅ Validating manifest schemas...")
+    if cad_manifest:
+        try:
+            service.validate_manifest_schema(cad_manifest)
+            _logger.info("CAD manifest schema validation successful")
+        except jsonschema.ValidationError as e:
+            _logger.error("CAD manifest schema validation failed: %s", e.message)
+            if fail_fast:
+                raise typer.Exit(os.EX_DATAERR)
+
+    if sim_manifest:
+        try:
+            service.validate_manifest_schema(sim_manifest)
+            _logger.info("SIM manifest schema validation successful")
+        except jsonschema.ValidationError as e:
+            _logger.error("SIM manifest schema validation failed: %s", e.message)
+            if fail_fast:
+                raise typer.Exit(os.EX_DATAERR)
+
+    # Validate and load CAD files
+    if cad_manifest:
+        _logger.info("📋 Validating CAD files...")
+        valid_files = _validate_cad_files(cad_manifest, repo_path, fail_fast)
+
+        if valid_files:
+            _logger.info("🔧 Loading CAD files...")
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+                transient=True,
+            ) as progress:
+                load_task = progress.add_task(
+                    f"Loading {len(valid_files)} CAD files...", total=None
+                )
+                for file_path in valid_files:
+                    service.load_cad_file(file_path)
+                    _logger.debug("Loaded CAD file: %s", file_path)
+                progress.update(
+                    load_task,
+                    description=f"Successfully loaded {len(valid_files)} CAD files",
+                )
+
+
+def _validate_cad_files(
+    cad_manifest_path: Path, repo_path: Path, fail_fast: bool
+) -> list[Path]:
+    """Validate CAD files exist and return list of valid files."""
+    try:
+        with cad_manifest_path.open("r", encoding="utf-8") as f:
+            manifest = json.load(f)
+
+        valid_files: list[Path] = []
+
+        for component in service.walk_manifest_components(manifest):
+            for file_obj in component.files:
+                file_path = file_obj.path
+
+                full_path = service.resolve_component_file_path(
+                    cad_manifest_path, file_path, repo_path
+                )
+
+                if full_path.exists():
+                    valid_files.append(full_path)
+                    _logger.debug("Found file: %s", file_path)
+                else:
+                    _logger.error("Missing file referenced in manifest: %s", full_path)
+                    if fail_fast:
+                        raise typer.Exit(os.EX_DATAERR)
+
+        _logger.info("Validated %d CAD files", len(valid_files))
+        return valid_files
+
+    except Exception as e: # pylint: disable=broad-exception-caught
+        _logger.error("Failed to validate CAD files: %s", e)
+        if fail_fast:
+            raise typer.Exit(1)
+        return []
+
+
+# Repository commands
+@repo_app.command("clone")
+def repo_clone(
+    repo_url: Annotated[str, typer.Option("--repo-url", help="Repository URL")],
+    commit: Annotated[str, typer.Option("--commit", help="Commit hash")],
+    dest: Annotated[str, typer.Option("--dest", help="Destination path")],
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
+    ] = False,
+    quiet: Annotated[
+        bool, typer.Option("--quiet", "-q", help="Only show errors")
+    ] = False,
+) -> None:
+    """Clone a repository and checkout a specific commit."""
+    setup_logging(verbose, quiet)
+
+    _logger.info("📥 Cloning repository")
+    _logger.info("🔗 Repository: %s", repo_url)
+    _logger.info("📌 Commit: %s", commit)
+    _logger.info("📁 Destination: %s", dest)
+
+    try:
+        dest_path = Path(dest)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task("Cloning repository...", total=None)
+            service.clone_repository(repo_url, commit, dest_path)
+            progress.update(task, description="Repository cloned successfully")
+
+        _logger.info("✅ Repository cloned successfully")
+    except Exception as e:
+        _logger.error("❌ Failed to clone repository: %s", e)
+        raise typer.Exit(1)
+
+
+# Manifest commands
+@manifest_app.command("validate")
+def manifest_validate(
+    repo_path: Annotated[str, typer.Option("--repo-path", help="Repository path")],
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
+    ] = False,
+    quiet: Annotated[
+        bool, typer.Option("--quiet", "-q", help="Only show errors")
+    ] = False,
+) -> None:
+    """Validate hornet manifests against their schemas."""
+    setup_logging(verbose, quiet)
+
+    _logger.info("✅ Validating manifests")
+    _logger.info("📁 Repository: %s", repo_path)
+
+    try:
+        repo_dir = Path(repo_path)
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            find_task = progress.add_task("Finding manifest files...", total=None)
+            cad_manifest, sim_manifest = service.find_hornet_manifests(repo_dir)
+            progress.update(find_task, description="Manifest files found")
+
+            if not cad_manifest and not sim_manifest:
+                _logger.error("❌ No hornet manifest files found")
+                raise typer.Exit(os.EX_NOINPUT)
+
+            if cad_manifest:
+                validate_task = progress.add_task(
+                    "Validating CAD manifest...", total=None
+                )
+                service.validate_manifest_schema(cad_manifest)
+                progress.update(
+                    validate_task, description="CAD manifest validation successful"
+                )
+                _logger.info("✅ CAD manifest validation successful")
+
+            if sim_manifest:
+                validate_task = progress.add_task(
+                    "Validating SIM manifest...", total=None
+                )
+                service.validate_manifest_schema(sim_manifest)
+                progress.update(
+                    validate_task, description="SIM manifest validation successful"
+                )
+                _logger.info("✅ SIM manifest validation successful")
+
+    except jsonschema.ValidationError as e:
+        _logger.error("❌ Schema validation failed: %s", e.message)
+        raise typer.Exit(os.EX_DATAERR)
+    except Exception as e:
+        _logger.error("❌ Validation failed: %s", e)
+        raise typer.Exit(os.EX_DATAERR)
+
+
+@manifest_app.command("show")
+def manifest_show(
+    repo_path: Annotated[str, typer.Option("--repo-path", help="Repository path")],
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
+    ] = False,
+    quiet: Annotated[
+        bool, typer.Option("--quiet", "-q", help="Only show errors")
+    ] = False,
+) -> None:
+    """Display hornet manifest contents."""
+    setup_logging(verbose, quiet)
+
+    _logger.info("📋 Showing manifests")
+    _logger.info("📁 Repository: %s", repo_path)
+
+    try:
+        repo_dir = Path(repo_path)
+        cad_manifest, sim_manifest = service.find_hornet_manifests(repo_dir)
+
+        if not cad_manifest and not sim_manifest:
+            _logger.error("❌ No hornet manifest files found")
+            raise typer.Exit(os.EX_NOINPUT)
+
+        if cad_manifest:
+            _logger.info("📄 CAD Manifest: %s", cad_manifest)
+            service.show_manifest_contents(cad_manifest)
+
+        if sim_manifest:
+            _logger.info("📄 SIM Manifest: %s", sim_manifest)
+            service.show_manifest_contents(sim_manifest)
+
+    except Exception as e:
+        _logger.error("❌ Failed to show manifests: %s", e)
+        raise typer.Exit(os.EX_DATAERR)
+
+
+# CAD commands
+@cad_app.command("load")
+def cad_load(
+    repo_path: Annotated[str, typer.Option("--repo-path", help="Repository path")],
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
+    ] = False,
+    quiet: Annotated[
+        bool, typer.Option("--quiet", "-q", help="Only show errors")
+    ] = False,
+) -> None:
+    """Load CAD files referenced in the manifest."""
+    setup_logging(verbose, quiet)
+
+    _logger.info("🔧 Loading CAD files")
+    _logger.info("📁 Repository: %s", repo_path)
+
+    try:
+        repo_dir = Path(repo_path)
+        cad_manifest, _ = service.find_hornet_manifests(repo_dir)
+
+        if not cad_manifest:
+            _logger.error("❌ No CAD manifest found")
+            raise typer.Exit(os.EX_NOINPUT)
+
+        _logger.info("📋 Processing CAD manifest...")
+        valid_files = _validate_cad_files(cad_manifest, repo_dir, fail_fast=True)
+
+        _logger.info("🔧 Loading %d CAD files...", len(valid_files))
+        for file_path in valid_files:
+            service.load_cad_file(file_path)
+            _logger.debug("Loaded: %s", file_path)
+
+        _logger.info("✅ Successfully loaded %d CAD files", len(valid_files))
+
+    except Exception as e:
+        _logger.error("❌ Failed to load CAD files: %s", e)
+        raise typer.Exit(os.EX_DATAERR)
+
+
+if __name__ == "__main__":
+    app()
