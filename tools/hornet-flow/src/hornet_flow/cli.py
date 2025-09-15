@@ -226,7 +226,7 @@ def workflow_run(
                     raise
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        _logger.error("Workflow failed: %s", e)
+        _logger.exception("Workflow failed: %s [%s]", e, type(e))
         if fail_fast:
             raise typer.Exit(1)
 
