@@ -279,8 +279,8 @@ def _validate_cad_files(
 @repo_app.command("clone")
 def repo_clone(
     repo_url: Annotated[str, typer.Option("--repo-url", help="Repository URL")],
-    commit: Annotated[str, typer.Option("--commit", help="Commit hash")],
-    dest: Annotated[str, typer.Option("--dest", help="Destination path")],
+    commit: Annotated[str, typer.Option("--commit", help="Commit hash")] = "main",
+    dest: Annotated[str, typer.Option("--dest", help="Destination path")] = "/tmp",
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
     ] = False,
@@ -305,10 +305,10 @@ def repo_clone(
             transient=True,
         ) as progress:
             task = progress.add_task("Cloning repository...", total=None)
-            service.clone_repository(repo_url, commit, dest_path)
+            repo_path = service.clone_repository(repo_url, commit, dest_path)
             progress.update(task, description="Repository cloned successfully")
 
-        _logger.info("✅ Repository cloned successfully")
+        _logger.info("✅ Repository cloned successfully to %s", repo_path)
     except Exception as e:
         _logger.error("❌ Failed to clone repository: %s", e)
         raise typer.Exit(1)
