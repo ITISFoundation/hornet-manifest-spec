@@ -37,6 +37,13 @@ hornet-flow workflow run --repo-path /path/to/local/repo --verbose
 # With cleanup (removes cloned repo after processing)
 hornet-flow workflow run --repo-url https://github.com/example/repo --cleanup --verbose
 
+# Using a specific plugin
+hornet-flow workflow run --repo-url https://github.com/example/repo --plugin osparc --verbose
+
+# With component filtering
+hornet-flow workflow run --repo-path /path/to/repo --type-filter assembly --verbose
+hornet-flow workflow run --repo-path /path/to/repo --name-filter electrode --verbose
+
 # Fail fast mode (stop on first error)
 hornet-flow workflow run --metadata-file examples/metadata.json --fail-fast
 ```
@@ -85,6 +92,27 @@ Load and process CAD files:
 # Load CAD files from manifest
 hornet-flow cad load --repo-path /path/to/repo --verbose
 ```
+
+### Plugin System
+
+Hornet-flow supports plugins for processing manifest components:
+
+```bash
+# List available plugins
+hornet-flow workflow run --help  # Shows plugin options
+
+# Use specific plugin
+hornet-flow workflow run --repo-path /path/to/repo --plugin debug --verbose
+hornet-flow workflow run --repo-path /path/to/repo --plugin osparc --verbose
+
+# Component filtering with plugins
+hornet-flow workflow run --repo-path /path/to/repo --plugin debug --type-filter assembly
+hornet-flow workflow run --repo-path /path/to/repo --plugin debug --name-filter electrode
+```
+
+**Available Plugins:**
+- `debug`: Simple logging plugin for testing and debugging
+- `osparc`: Integration with OSparc for CAD file loading
 
 ### Global Options
 
@@ -135,7 +163,7 @@ hornet-flow manifest validate --repo-path /tmp/electrodes --verbose
 # Show CAD manifest only
 hornet-flow manifest show --repo-path /tmp/electrodes --type cad
 
-# Show SIM manifest only  
+# Show SIM manifest only
 hornet-flow manifest show --repo-path /tmp/electrodes --type sim
 
 # Show both manifests

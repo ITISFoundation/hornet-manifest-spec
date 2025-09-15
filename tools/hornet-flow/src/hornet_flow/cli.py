@@ -110,6 +110,16 @@ def workflow_run(
     cleanup: Annotated[
         bool, typer.Option("--cleanup", help="Clean up cloned repo")
     ] = False,
+    plugin: Annotated[
+        Optional[str],
+        typer.Option("--plugin", help="Plugin to use for processing components"),
+    ] = None,
+    type_filter: Annotated[
+        Optional[str], typer.Option("--type-filter", help="Filter components by type")
+    ] = None,
+    name_filter: Annotated[
+        Optional[str], typer.Option("--name-filter", help="Filter components by name")
+    ] = None,
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
     ] = False,
@@ -153,7 +163,9 @@ def workflow_run(
         if repo_path:
             _logger.info("📁 Using existing repo: %s", repo_path)
             target_repo_path = Path(repo_path)
-            _process_manifests(target_repo_path, fail_fast)
+            _process_manifests(
+                target_repo_path, fail_fast, plugin, type_filter, name_filter
+            )
         else:
             assert repo_url  # nosec
             _logger.info("🔗 Repository URL: %s", repo_url)
@@ -186,7 +198,9 @@ def workflow_run(
                     _logger.info("Successfully cloned repository")
 
                     # Process manifests within the temporary directory context
-                    _process_manifests(target_repo_path, fail_fast)
+                    _process_manifests(
+                        target_repo_path, fail_fast, plugin, type_filter, name_filter
+                    )
                     # Automatic cleanup happens when exiting the context
                     _logger.info("🧹 Automatically cleaning up temporary repository")
             else:
@@ -215,7 +229,9 @@ def workflow_run(
                     _logger.info("Successfully cloned repository")
 
                     # Process manifests
-                    _process_manifests(target_repo_path, fail_fast)
+                    _process_manifests(
+                        target_repo_path, fail_fast, plugin, type_filter, name_filter
+                    )
 
                     _logger.info("Repository kept at: %s", target_repo_path)
                 except Exception:
@@ -231,8 +247,14 @@ def workflow_run(
             raise typer.Exit(1)
 
 
-def _process_manifests(repo_path: Path, fail_fast: bool) -> None:
-    """Process manifests found in repository."""
+def _process_manifests(
+    repo_path: Path,
+    fail_fast: bool,
+    plugin_name: Optional[str] = None,
+    type_filter: Optional[str] = None,
+    name_filter: Optional[str] = None,
+) -> None:
+    """Process manifests found in repository using specified plugin."""
     # Find hornet manifests
     _logger.info("🔍 Finding hornet manifests...")
     cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
@@ -268,29 +290,123 @@ def _process_manifests(repo_path: Path, fail_fast: bool) -> None:
             if fail_fast:
                 raise typer.Exit(os.EX_DATAERR)
 
-    # Validate and load CAD files
+    # Process CAD manifest with plugin if available
     if cad_manifest:
-        _logger.info("📋 Validating CAD files...")
-        valid_files = _validate_cad_files(cad_manifest, repo_path, fail_fast)
+        if plugin_name:
+            _logger.info("🔧 Processing CAD manifest with plugin: %s", plugin_name)
 
-        if valid_files:
-            _logger.info("🔧 Loading CAD files...")
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-                transient=True,
-            ) as progress:
-                load_task = progress.add_task(
-                    f"Loading {len(valid_files)} CAD files...", total=None
+            plugin_instance = None
+            try:
+                from hornet_flow.plugins import get_default_plugin, get_plugin
+
+                plugin_name = plugin_name or get_default_plugin()
+                plugin_class = get_plugin(plugin_name)
+                plugin_instance = plugin_class()
+
+                # Setup plugin
+                plugin_instance.setup(repo_path, cad_manifest, _logger)
+
+                # Load manifest and process components
+                manifest_data = service.read_manifest_contents(cad_manifest)
+
+                success_count = 0
+                total_count = 0
+
+                for component in service.walk_manifest_components(manifest_data):
+                    total_count += 1
+
+                    # Apply filters
+                    if type_filter and component.type != type_filter:
+                        _logger.debug(
+                            "Skipping component %s due to type filter", component.id
+                        )
+                        continue
+                    if name_filter and name_filter.lower() not in component.id.lower():
+                        _logger.debug(
+                            "Skipping component %s due to name filter", component.id
+                        )
+                        continue
+
+                    # Resolve component files
+                    component_files = []
+                    for file_obj in component.files:
+                        file_path = service.resolve_component_file_path(
+                            cad_manifest, file_obj.path, repo_path
+                        )
+                        if file_path.exists():
+                            component_files.append(file_path)
+                        else:
+                            _logger.error("Missing file: %s", file_path)
+                            if fail_fast:
+                                raise typer.Exit(os.EX_DATAERR)
+
+                    # Process component with plugin
+                    try:
+                        parent_id = (
+                            ".".join(component.parent_id)
+                            if component.parent_id
+                            else None
+                        )
+                        success = plugin_instance.load_component(
+                            component.__dict__, component_files, parent_id
+                        )
+                        if success:
+                            success_count += 1
+                            _logger.debug("Processed component: %s", component.id)
+                        else:
+                            _logger.error(
+                                "Failed to process component: %s", component.id
+                            )
+                            if fail_fast:
+                                raise typer.Exit(1)
+
+                    except Exception as e:  # noqa: BLE001
+                        _logger.error("Plugin error processing %s: %s", component.id, e)
+                        if fail_fast:
+                            raise typer.Exit(1)
+
+                _logger.info(
+                    "✅ Processed %d/%d components successfully",
+                    success_count,
+                    total_count,
                 )
-                for file_path in valid_files:
-                    service.load_cad_file(file_path)
-                    _logger.debug("Loaded CAD file: %s", file_path)
-                progress.update(
-                    load_task,
-                    description=f"Successfully loaded {len(valid_files)} CAD files",
-                )
+
+            except ValueError as e:
+                _logger.error("Plugin error: %s", e)
+                if fail_fast:
+                    raise typer.Exit(1)
+            except Exception:
+                # Ensure plugin cleanup even on unexpected errors
+                if plugin_instance is not None:
+                    plugin_instance.teardown()
+                raise
+            else:
+                # Normal cleanup
+                if plugin_instance is not None:
+                    plugin_instance.teardown()
+        else:
+            # Fallback to original file validation behavior
+            _logger.info("📋 Validating CAD files...")
+            valid_files = _validate_cad_files(cad_manifest, repo_path, fail_fast)
+
+            if valid_files:
+                _logger.info("🔧 Loading CAD files...")
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                    transient=True,
+                ) as progress:
+                    load_task = progress.add_task(
+                        f"Loading {len(valid_files)} CAD files...", total=None
+                    )
+                    for file_path in valid_files:
+                        service.load_cad_file(file_path)
+                        _logger.debug("Loaded CAD file: %s", file_path)
+                    progress.update(
+                        load_task,
+                        description=f"Successfully loaded {len(valid_files)} CAD files",
+                    )
 
 
 def _validate_cad_files(
