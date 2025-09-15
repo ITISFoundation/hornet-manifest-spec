@@ -719,7 +719,7 @@ def cad_load(
             _logger.error("❌ No CAD manifest found")
             raise typer.Exit(os.EX_NOINPUT)
 
-        # Validate manifest schema first
+        # 1. Validate manifest schema first
         _logger.info("✅ Validating manifest schema...")
         try:
             service.validate_manifest_schema(cad_manifest)
@@ -729,7 +729,7 @@ def cad_load(
             if fail_fast:
                 raise typer.Exit(os.EX_DATAERR)
 
-        # Process with plugin
+        # 2. Process with plugin
         _process_manifest_with_plugin(
             cad_manifest, repo_dir, fail_fast, plugin, type_filter, name_filter
         )
