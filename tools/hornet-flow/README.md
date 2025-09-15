@@ -1,14 +1,200 @@
 # hornet-flow
 
+A CLI tool for loading and processing hornet manifests from git repositories.
+
 ## Installation
 
 ```cmd
 uv pip install "git+https://github.com/ITISFoundation/hornet-manifest-spec.git@main#subdirectory=tools/hornet-flow"
 ```
 
+## Usage
 
-## Run
+### Basic Commands
 
-```cmd
+```bash
+# Show help
 hornet-flow --help
+
+# Show version
+hornet-flow --version
+```
+
+### Workflow Operations
+
+Run complete workflows to process hornet manifests:
+
+```bash
+# Using a metadata file
+hornet-flow workflow run --metadata-file examples/portal-device-metadata.json --verbose
+
+# Using inline repository parameters
+hornet-flow workflow run --repo-url https://github.com/example/repo --commit main --verbose
+
+# Using an already-cloned repository
+hornet-flow workflow run --repo-path /path/to/local/repo --verbose
+
+# With cleanup (removes cloned repo after processing)
+hornet-flow workflow run --repo-url https://github.com/example/repo --cleanup --verbose
+
+# Fail fast mode (stop on first error)
+hornet-flow workflow run --metadata-file examples/metadata.json --fail-fast
+```
+
+### Repository Operations
+
+Clone repositories and manage git operations:
+
+```bash
+# Clone repository to default temp directory
+hornet-flow repo clone --repo-url https://github.com/example/repo
+
+# Clone to specific destination
+hornet-flow repo clone --repo-url https://github.com/example/repo --dest /tmp/my-repo
+
+# Clone specific commit
+hornet-flow repo clone --repo-url https://github.com/example/repo --commit abc123 --dest /tmp/my-repo
+```
+
+### Manifest Operations
+
+Validate and display manifest contents:
+
+```bash
+# Validate all manifests in repository
+hornet-flow manifest validate --repo-path /path/to/repo
+
+# Show all manifests (default)
+hornet-flow manifest show --repo-path /path/to/repo
+
+# Show only CAD manifest
+hornet-flow manifest show --repo-path /path/to/repo --type cad
+
+# Show only SIM manifest
+hornet-flow manifest show --repo-path /path/to/repo --type sim
+
+# Show both manifests explicitly
+hornet-flow manifest show --repo-path /path/to/repo --type both
+```
+
+### CAD Operations
+
+Load and process CAD files:
+
+```bash
+# Load CAD files from manifest
+hornet-flow cad load --repo-path /path/to/repo --verbose
+```
+
+### Global Options
+
+All commands support these logging options:
+
+```bash
+# Verbose logging (debug level)
+hornet-flow <command> --verbose
+
+# Quiet mode (errors only)
+hornet-flow <command> --quiet
+
+# Regular logging (info level) - default
+hornet-flow <command>
+```
+
+### Examples
+
+#### Complete Workflow
+
+Process manifests from a metadata file with cleanup:
+
+```bash
+hornet-flow workflow run \
+  --metadata-file examples/portal-device-metadata.json \
+  --work-dir /tmp/hornet-flow \
+  --cleanup \
+  --verbose
+```
+
+#### Step-by-Step Workflow
+
+1. **Clone a repository:**
+```bash
+hornet-flow repo clone \
+  --repo-url https://github.com/COSMIIC-Inc/Implantables-Electrodes \
+  --dest /tmp/electrodes \
+  --verbose
+```
+
+2. **Validate manifests:**
+```bash
+hornet-flow manifest validate --repo-path /tmp/electrodes --verbose
+```
+
+3. **Show manifest contents:**
+```bash
+# Show CAD manifest only
+hornet-flow manifest show --repo-path /tmp/electrodes --type cad
+
+# Show SIM manifest only  
+hornet-flow manifest show --repo-path /tmp/electrodes --type sim
+
+# Show both manifests
+hornet-flow manifest show --repo-path /tmp/electrodes --type both
+```
+
+4. **Load CAD files:**
+```bash
+hornet-flow cad load --repo-path /tmp/electrodes --verbose
+```
+
+#### Using Different Input Methods
+
+**With metadata file:**
+```bash
+hornet-flow workflow run \
+  --metadata-file examples/portal-device-metadata.json \
+  --verbose
+```
+
+**With inline repository parameters:**
+```bash
+hornet-flow workflow run \
+  --repo-url https://github.com/example/repo \
+  --commit abc123 \
+  --verbose
+```
+
+**With existing local repository:**
+```bash
+hornet-flow workflow run \
+  --repo-path /path/to/existing/repo \
+  --verbose
+```
+
+#### Error Handling
+
+**Fail fast mode (stop on first error):**
+```bash
+hornet-flow workflow run \
+  --metadata-file examples/metadata.json \
+  --fail-fast \
+  --verbose
+```
+
+**Quiet mode (only show errors):**
+```bash
+hornet-flow manifest validate \
+  --repo-path /tmp/electrodes \
+  --quiet
+```
+
+## Development
+
+See the Makefile for development commands:
+
+```bash
+make help           # Show available targets
+make install-all    # Install all dependencies
+make test          # Run tests
+make lint          # Run linting
 ```
