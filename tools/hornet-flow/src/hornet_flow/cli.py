@@ -19,6 +19,7 @@ from rich.table import Table
 
 import hornet_flow
 from hornet_flow import service
+from hornet_flow.processors import ManifestProcessor
 
 console = Console()
 
@@ -364,12 +365,11 @@ def _process_manifest_with_plugin(
     cad_manifest: Path,
     repo_path: Path,
     fail_fast: bool,
-    plugin_name: Optional[str] = None,
+    plugin_name: str,
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
 ) -> None:
     """Process CAD manifest using specified plugin."""
-    from hornet_flow.processors import ManifestProcessor
 
     processor = ManifestProcessor(plugin_name, _logger)
     try:

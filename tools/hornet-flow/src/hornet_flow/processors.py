@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from hornet_flow import service
-from hornet_flow.plugins import get_default_plugin, get_plugin
+from hornet_flow.plugins import get_plugin
 from hornet_flow.plugins.base import HornetFlowPlugin
 
 from .model import Component
@@ -14,11 +14,9 @@ from .model import Component
 class ManifestProcessor:
     """Orchestrates the processing of manifest components through plugins."""
 
-    def __init__(
-        self, plugin_name: Optional[str] = None, logger: Optional[logging.Logger] = None
-    ):
-        self.plugin_name = plugin_name or get_default_plugin()
-        self.logger = logger or logging.getLogger(__name__)
+    def __init__(self, plugin_name: str, logger: logging.Logger):
+        self.plugin_name = plugin_name
+        self.logger = logger
         self.plugin_instance: Optional[HornetFlowPlugin] = None
 
     def process_manifest(
