@@ -13,7 +13,7 @@ from .base import HornetFlowPlugin
 
 
 @contextmanager
-def _app_lifespan() -> Iterator[XCore.ConsoleApp]:
+def _app_lifespan() -> Iterator[XCore.Application]:
     """Context manager for the lifespan of the OSparc app."""
 
     TROUBLESOME_PLUGIN_GROUP = (
