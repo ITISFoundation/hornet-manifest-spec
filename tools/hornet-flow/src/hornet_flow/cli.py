@@ -76,7 +76,7 @@ def _setup_logging(
         # Use plain logging for better console compatibility
         logging.basicConfig(
             level=log_level,
-            format="%(levelname)s: %(message)s",
+            format="%(levelname)s: %(message)s [%(filename)s:%(funcName)s:%(lineno)d]",
             handlers=[logging.StreamHandler()],
         )
     else:

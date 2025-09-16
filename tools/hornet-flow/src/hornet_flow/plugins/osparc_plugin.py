@@ -9,10 +9,13 @@ from typing import Iterator, Optional
 import XCore
 import XCoreModeling
 
+from hornet_flow.logging_utils import log_action, log_and_suppress
+
 from .base import HornetFlowPlugin
 
 
 @contextmanager
+@log_action(logging.getLogger(__name__), "OSparc app lifespan", level=logging.DEBUG)
 def _app_lifespan() -> Iterator[XCore.Application]:
     """Context manager for the lifespan of the OSparc app."""
 
@@ -56,6 +59,9 @@ def _app_lifespan() -> Iterator[XCore.Application]:
 
 
 @contextmanager
+@log_action(
+    logging.getLogger(__name__), "OSparc app document lifespan", level=logging.DEBUG
+)
 def _app_document_lifespan(app: XCore.Application, repo_path: Path) -> Iterator[None]:
     base_dir = repo_path.parent if repo_path else Path.cwd()
     file_name = repo_path.name if repo_path else "hornet-model"
@@ -71,6 +77,11 @@ def _app_document_lifespan(app: XCore.Application, repo_path: Path) -> Iterator[
 
 
 @contextmanager
+@log_action(
+    logging.getLogger(__name__),
+    "OSparc app document main model group lifespan",
+    level=logging.DEBUG,
+)
 def _app_document_main_model_group_lifespan(
     repo_name: str,
 ) -> Iterator[XCoreModeling.EntityGroup]:
@@ -83,10 +94,16 @@ def _app_document_main_model_group_lifespan(
     yield main_group
 
     # Zoom to main group if succeeds
-    with contextlib.suppress(Exception):
-        from s4l_v1.renderer import ZoomToEntity
+    with log_and_suppress(logging.getLogger(__name__), "Zooming to main group"):
+        with log_action(
+            logging.getLogger(__name__),
+            "Zooming to main group",
+            level=logging.DEBUG,
+        ):
+            # pylint: disable=import-outside-toplevel
+            from s4l_v1.renderer import ZoomToEntity
 
-        ZoomToEntity(main_group, zoom_factor=1.2)
+            ZoomToEntity(main_group, zoom_factor=1.2)
 
 
 class OSparcPlugin(HornetFlowPlugin):
@@ -122,8 +139,6 @@ class OSparcPlugin(HornetFlowPlugin):
         self._manifest_path = manifest_path
 
         # setup lifespan contexts
-        self._logger.info("🛠 Setting up OSparc plugin")
-
         app = self._stack.enter_context(_app_lifespan())
         # TODO: log info about app, model, etc
 
@@ -143,9 +158,11 @@ class OSparcPlugin(HornetFlowPlugin):
         """Load component into OSparc."""
         try:
             # 1. Create a group for the component and set name
+            self._logger.debug("Loading component %s", component_id)
             component_group = XCoreModeling.CreateGroup(component_id)
 
             # 2. Save metadata in Group name Properties
+            self._logger.debug("Saving metadata for component %s", component_id)
             # TODO: add all headers of manifest or even the entire manifest as JSON?
             component_group.SetDescription("hornet.description", component_description)
             component_group.SetDescription("hornet.component_id", component_id)
@@ -165,9 +182,9 @@ class OSparcPlugin(HornetFlowPlugin):
 
                 else:
                     component_group.Add(imported_entities)
-                    self._logger.info(
-                        "Successfully imported %d entities for component %s using %s",
-                        len(imported_entities),
+
+                    self._logger.debug(
+                        "Successfully imported component %s from %s",
                         component_id,
                         component_path,
                     )

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from hornet_flow import service
+from hornet_flow.logging_utils import log_action
 from hornet_flow.plugins import get_default_plugin, get_plugin
 from hornet_flow.plugins.base import HornetFlowPlugin
 
@@ -49,26 +50,43 @@ class ManifestProcessor:
         """
         try:
             # 1. Setup plugin
-            self.plugin_instance = self.plugin_class()  # refresh instance for each run
-            assert self.plugin_instance is not None  # nosec
-            self.plugin_instance.setup(repo_path, manifest_path, self.logger)
+            with log_action(
+                self.logger,
+                f"Setting up plugin '{self.plugin_name}'",
+                level=logging.DEBUG,
+            ):
+                self.plugin_instance = (
+                    self.plugin_class()
+                )  # refresh instance for each run
+                assert self.plugin_instance is not None  # nosec
+                self.plugin_instance.setup(repo_path, manifest_path, self.logger)
 
             # 2. Load and process manifest
-            manifest_data = service.read_manifest_contents(manifest_path)
-            return self._process_components(
-                manifest_data,
-                manifest_path,
-                repo_path,
-                fail_fast,
-                type_filter,
-                name_filter,
-            )
+            with log_action(
+                self.logger,
+                f"Processing manifest '{manifest_path.name}' with plugin '{self.plugin_name}'",
+                level=logging.DEBUG,
+            ):
+                manifest_data = service.read_manifest_contents(manifest_path)
+                return self._process_components(
+                    manifest_data,
+                    manifest_path,
+                    repo_path,
+                    fail_fast,
+                    type_filter,
+                    name_filter,
+                )
 
         finally:
             # 3. Cleanup
-            if self.plugin_instance:
-                self.plugin_instance.teardown()
-                self.plugin_instance = None
+            with log_action(
+                self.logger,
+                f"Tearing down plugin '{self.plugin_name}'",
+                level=logging.DEBUG,
+            ):
+                if self.plugin_instance:
+                    self.plugin_instance.teardown()
+                    self.plugin_instance = None
 
     def _process_components(
         self,
