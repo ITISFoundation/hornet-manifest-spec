@@ -39,13 +39,13 @@ def _app_lifespan(logger: logging.Logger) -> Iterator[XCore.Application]:
 
 
 @contextmanager
-def _app_document_lifespan(app: XCore.Application, repo_path: Path) -> Iterator[None]:
-    with log_action(
-        logging.getLogger(__name__), "OSparc app document lifespan", level=logging.DEBUG
-    ):
+def _app_document_lifespan(
+    logger: logging.Logger, app: XCore.Application, repo_path: Path
+) -> Iterator[None]:
+    with log_action(logger, "OSparc app document lifespan", level=logging.DEBUG):
         base_dir = repo_path.parent if repo_path else Path.cwd()
         file_name = repo_path.name if repo_path else "hornet-model"
-        doc_path = base_dir / f"{file_name}.smash"
+        doc_path = (base_dir / f"{file_name}.smash").resolve()
         assert base_dir.exists()  # nosec
 
         app.NewDocument()
@@ -53,11 +53,15 @@ def _app_document_lifespan(app: XCore.Application, repo_path: Path) -> Iterator[
         try:
             yield
         finally:
-            XCore.GetApp().SaveDocumentAs(f"{doc_path}")
+            logger.debug("Saving to %s", doc_path)
+            is_saved = XCore.GetApp().SaveDocumentAs(f"{doc_path}")
+            if not is_saved:
+                raise IOError(f"Failed to save document to {doc_path}")
 
 
 @contextmanager
 def _app_document_main_model_group_lifespan(
+    logger: logging.Logger,
     repo_name: str,
 ) -> Iterator[XCoreModeling.EntityGroup]:
     """Context manager for the main model's group lifespan."""
@@ -69,7 +73,7 @@ def _app_document_main_model_group_lifespan(
     yield main_group
 
     # Zoom to main group if succeeds
-    with log_and_suppress(logging.getLogger(__name__), "Zooming to main group"):
+    with log_and_suppress(logger, "Zooming to main group"):
         with log_action(
             logging.getLogger(__name__),
             "Zooming to main group",
@@ -117,10 +121,10 @@ class OSparcPlugin(HornetFlowPlugin):
         app = self._stack.enter_context(_app_lifespan(self._logger))
         # TODO: log info about app, model, etc
 
-        self._stack.enter_context(_app_document_lifespan(app, repo_path))
+        self._stack.enter_context(_app_document_lifespan(self._logger, app, repo_path))
 
         self._main_group = self._stack.enter_context(
-            _app_document_main_model_group_lifespan(repo_path.stem)
+            _app_document_main_model_group_lifespan(self._logger, repo_path.stem)
         )
 
     def load_component(
