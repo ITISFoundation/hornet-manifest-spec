@@ -365,7 +365,7 @@ def _process_manifest_with_plugin(
     cad_manifest: Path,
     repo_path: Path,
     fail_fast: bool,
-    plugin_name: str,
+    plugin_name: Optional[str] = None,
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
 ) -> None:

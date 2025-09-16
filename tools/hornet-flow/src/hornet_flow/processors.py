@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from hornet_flow import service
-from hornet_flow.plugins import get_plugin
+from hornet_flow.plugins import get_default_plugin, get_plugin
 from hornet_flow.plugins.base import HornetFlowPlugin
 
 from .model import Component
@@ -14,9 +14,11 @@ from .model import Component
 class ManifestProcessor:
     """Orchestrates the processing of manifest components through plugins."""
 
-    def __init__(self, plugin_name: str, logger: logging.Logger):
-        self.plugin_name = plugin_name
+    def __init__(self, plugin_name: Optional[str], logger: logging.Logger):
         self.logger = logger
+        # plugin
+        self.plugin_name = plugin_name or get_default_plugin()
+        self.plugin_class = get_plugin(self.plugin_name)
         self.plugin_instance: Optional[HornetFlowPlugin] = None
 
     def process_manifest(
@@ -40,8 +42,8 @@ class ManifestProcessor:
         """
         try:
             # 1. Setup plugin
-            plugin_class = get_plugin(self.plugin_name)
-            self.plugin_instance: HornetFlowPlugin = plugin_class()
+            self.plugin_instance = self.plugin_class() # refresh instance for each run
+            assert self.plugin_instance is not None  # nosec
             self.plugin_instance.setup(repo_path, manifest_path, self.logger)
 
             # 2. Load and process manifest
