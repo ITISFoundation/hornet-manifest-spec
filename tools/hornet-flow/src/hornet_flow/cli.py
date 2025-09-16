@@ -370,8 +370,7 @@ def _process_manifest_with_plugin(
     name_filter: Optional[str] = None,
 ) -> None:
     """Process CAD manifest using specified plugin."""
-    if not plugin_name:
-        plugin_name = get_default_plugin()
+    plugin_name = plugin_name or get_default_plugin()
 
     _logger.info("🔧 Processing CAD manifest with plugin: %s", plugin_name)
 
@@ -380,10 +379,10 @@ def _process_manifest_with_plugin(
         plugin_class = get_plugin(plugin_name)
         plugin_instance = plugin_class()
 
-        # Setup plugin
+        # 1. Setup plugin
         plugin_instance.setup(repo_path, cad_manifest, _logger)
 
-        # Load manifest and process components
+        # 2. Load manifest and process components
         manifest_data = service.read_manifest_contents(cad_manifest)
 
         success_count = 0
@@ -416,10 +415,14 @@ def _process_manifest_with_plugin(
             # Process component with plugin
             try:
                 parent_id = (
-                    ".".join(component.parent_id) if component.parent_id else None
+                    "/".join(component.parent_id) if component.parent_id else None
                 )
                 success = plugin_instance.load_component(
-                    component.__dict__, component_files, parent_id
+                    component_id=component.id,
+                    component_type=component.type,
+                    component_description=component.description,
+                    component_files=component_files,
+                    parent_id=parent_id,
                 )
                 if success:
                     success_count += 1

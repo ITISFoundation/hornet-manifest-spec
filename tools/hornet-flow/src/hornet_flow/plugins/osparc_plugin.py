@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from .base import HornetFlowPlugin
 
@@ -12,7 +12,7 @@ class OSparcPlugin(HornetFlowPlugin):
 
     def __init__(self):
         self._name = "osparc"
-        self.logger: Optional[logging.Logger] = None
+        self.logger: logging.Logger = logging.getLogger(__name__)
         self.repo_path: Optional[Path] = None
         self.manifest_path: Optional[Path] = None
         self.main_group = None  # XCoreModeling.EntityGroup when available
@@ -44,79 +44,65 @@ class OSparcPlugin(HornetFlowPlugin):
 
     def load_component(
         self,
-        component: dict[str, Any],
+        component_id: str,
+        component_type: str,
+        component_description: Optional[str],
         component_files: list[Path],
         parent_id: Optional[str] = None,
     ) -> bool:
         """Load component into OSparc."""
         try:
-            component_id = component.get("id", "unknown")
-            component_type = component.get("type", "unknown")
-
-            if self.logger:
-                self.logger.debug(
-                    "Loading component: %s (type: %s, parent: %s)",
-                    component_id,
-                    component_type,
-                    parent_id,
-                )
+            self.logger.debug(
+                "Loading component: %s (type: %s, parent: %s)",
+                component_id,
+                component_type,
+                parent_id,
+            )
 
             # Create component group
             # component_group = XCoreModeling.CreateGroup(component_id)
             # self.loaded_groups.append(component_group)
 
             # Set description if available
-            if "description" in component:
-                if self.logger:
-                    self.logger.debug("Description: %s", component["description"])
-                # component_group.SetDescription("description", component['description'])
+            if component_description:
+                self.logger.debug("Description: %s", component_description)
 
             # Load files
             for file_path in component_files:
-                if self.logger:
-                    self.logger.debug("Loading file: %s", file_path)
+                self.logger.debug("Loading file: %s", file_path)
                 if file_path.exists():
                     # XCoreModeling.LoadFile(str(file_path))
-                    if self.logger:
-                        self.logger.debug(
-                            "File loaded successfully: %s", file_path.name
-                        )
+                    self.logger.debug("File loaded successfully: %s", file_path.name)
                 else:
-                    if self.logger:
-                        self.logger.warning("File not found: %s", file_path)
+                    self.logger.warning("File not found: %s", file_path)
 
             # Add to parent group or main group
             # if self.main_group:
             #     self.main_group.Add(component_group)
 
-            if self.logger:
-                self.logger.debug("Component %s loaded successfully", component_id)
+            self.logger.debug("Component %s loaded successfully", component_id)
             return True
 
         except Exception as e:  # noqa: BLE001
-            if self.logger:
-                self.logger.error(
-                    "Failed to load component %s: %s", component.get("id", "unknown"), e
-                )
+            self.logger.error("Failed to load component %s: %s", component_id, e)
             return False
 
     def teardown(self) -> None:
         """Clean up OSparc resources."""
-        if self.logger:
-            self.logger.info("🧹 Cleaning up OSparc plugin")
+        self.logger.info("🧹 Cleaning up OSparc plugin")
 
-            # Zoom to loaded components
-            if self.loaded_groups:
-                try:
-                    # from s4l_v1.renderer import ZoomToEntity
-                    # ZoomToEntity(self.loaded_groups, zoom_factor=1.2)
-                    self.logger.debug(
-                        "Zoomed to %d loaded components", len(self.loaded_groups)
-                    )
-                except ImportError:
-                    self.logger.debug("ZoomToEntity not available")
-                except Exception as e:  # noqa: BLE001
-                    self.logger.warning("Failed to zoom to components: %s", e)
+        # Zoom to loaded components
+        if self.loaded_groups:
+            try:
+                # from s4l_v1.renderer import ZoomToEntity
+                # ZoomToEntity(self.loaded_groups, zoom_factor=1.2)
+                self.logger.debug(
+                    "Zoomed to %d loaded components", len(self.loaded_groups)
+                )
+            except ImportError:
+                self.logger.debug("ZoomToEntity not available")
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning("Failed to zoom to components: %s", e)
 
         # Reset state
         self.loaded_groups.clear()

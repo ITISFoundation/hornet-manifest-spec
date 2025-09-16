@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from .base import HornetFlowPlugin
 
@@ -12,7 +12,7 @@ class DebugPlugin(HornetFlowPlugin):
 
     def __init__(self):
         self._name = "debug"
-        self.logger: Optional[logging.Logger] = None
+        self.logger: logging.Logger = logging.getLogger(__name__)
         self.component_count = 0
 
     @property
@@ -26,39 +26,40 @@ class DebugPlugin(HornetFlowPlugin):
         """Initialize debug plugin."""
         self.logger = logger
         self.component_count = 0
-        if self.logger:
-            self.logger.info("🐛 Setting up Debug plugin")
-            self.logger.debug("Repository: %s", repo_path)
-            self.logger.debug("Manifest: %s", manifest_path)
+
+        self.logger.info("🐛 Setting up Debug plugin")
+        self.logger.debug("Repository: %s", repo_path)
+        self.logger.debug("Manifest: %s", manifest_path)
+        self.logger.debug("Logger: %s", logger.name)
 
     def load_component(
         self,
-        component: dict[str, Any],
+        component_id: str,
+        component_type: str,
+        component_description: Optional[str],
         component_files: list[Path],
         parent_id: Optional[str] = None,
     ) -> bool:
         """Process component with debug logging."""
         self.component_count += 1
 
-        if self.logger:
-            self.logger.info(
-                "🔍 Component #%d: %s",
-                self.component_count,
-                component.get("id", "unknown"),
-            )
-            self.logger.info("   Type: %s", component.get("type", "unknown"))
-            self.logger.info("   Parent: %s", parent_id or "None")
-            self.logger.info("   Files: %d", len(component_files))
+        self.logger.info("🔍 Component #%d: %s", self.component_count, component_id)
+        self.logger.info("   Type: %s", component_type)
+        self.logger.info("   Parent: %s", parent_id or "None")
+        self.logger.info(
+            "   Description: %s",
+            component_description if component_description else "No description",
+        )
+        self.logger.info("   Files: %d", len(component_files))
 
-            for i, file_path in enumerate(component_files, 1):
-                self.logger.info("     %d. %s", i, file_path.name)
+        for i, file_path in enumerate(component_files, 1):
+            self.logger.info("     %d. %s", i, file_path.name)
 
         # Always succeed
         return True
 
     def teardown(self) -> None:
         """Clean up debug plugin."""
-        if self.logger:
-            self.logger.info(
-                "🐛 Debug plugin processed %d components", self.component_count
-            )
+        self.logger.info(
+            "🐛 Debug plugin processed %d components", self.component_count
+        )

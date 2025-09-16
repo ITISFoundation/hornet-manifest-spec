@@ -3,7 +3,7 @@
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 
 class HornetFlowPlugin(ABC):
@@ -24,7 +24,9 @@ class HornetFlowPlugin(ABC):
     @abstractmethod
     def load_component(
         self,
-        component: dict[str, Any],
+        component_id: str,
+        component_type: str,
+        component_description: Optional[str],
         component_files: list[Path],
         parent_id: Optional[str] = None,
     ) -> bool:
@@ -32,7 +34,9 @@ class HornetFlowPlugin(ABC):
         Process a single component from the manifest.
 
         Args:
-            component: Component data from manifest (id, type, description, etc.)
+            component_id: ID of the component
+            component_type: Type of the component
+            component_description: Description of the component, if any
             component_files: List of resolved file paths for this component
             parent_id: ID of parent component if this is nested
 
