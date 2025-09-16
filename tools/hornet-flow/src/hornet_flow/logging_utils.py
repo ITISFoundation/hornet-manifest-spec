@@ -34,12 +34,12 @@ class log_action(contextlib.ContextDecorator):  # pylint: disable=invalid-name
         self.level = level
 
     def __enter__(self):
-        self.logger.log(self.level, "%s ...", self.action)
+        self.logger.log(self.level, "%s ...", self.action, stacklevel=2)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is None:
-            self.logger.log(self.level, "%s [success]", self.action)
+            self.logger.log(self.level, "%s [success]", self.action, stacklevel=2)
 
         return False  # do not suppress exceptions
 
@@ -80,7 +80,7 @@ class log_and_suppress(contextlib.ContextDecorator):  # pylint: disable=invalid-
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None and issubclass(exc_type, self.exceptions):
             self.logger.exception(
-                "%s failed but continuing: %s", self.action, str(exc_val)
+                "%s failed but continuing: %s", self.action, str(exc_val), stacklevel=2
             )
             return True  # Suppress the exception
         return False
