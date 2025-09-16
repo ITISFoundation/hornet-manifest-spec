@@ -148,6 +148,13 @@ def show_info() -> None:
     version_table.add_row("Python", f"{sys.version.split()[0]}")
     version_table.add_row("Platform", platform.platform())
 
+    # Check git version
+    git_version = service.check_git_version()
+    if git_version:
+        version_table.add_row("Git", git_version)
+    else:
+        version_table.add_row("Git", "[red]Not found or not working[/red]")
+
     console.print()
     console.print("📋 Version Information")
     console.print(version_table)
