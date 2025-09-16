@@ -34,11 +34,13 @@ def load_component(
         )
         return None
 
+    # Create group per component
     component_group = XCoreModeling.CreateGroup(component["id"])
 
     if "description" in component:
         component_group.SetDescription("description", component["description"])
 
+    # Add to the associated
     if parent_group is not None:
         parent_group.Add(component_group)
 
@@ -49,25 +51,43 @@ def load_component(
     )
 
     if "files" in component:
+        num_files = len(component["files"])
+
+        _logger.info(
+            "Component %s has %d possible files. Loading first",
+            component["id"],
+            num_files,
+        )
+
+        # This is a list of files with different formats for the component
+        # Import the first file that it can
+        is_file_imported = False
         for file_info in component["files"]:
             file_path = Path(base_path) / file_info["path"]
 
             try:
-                if file_path.exists():
-                    _logger.info("Importing file: %s", file_path)
-                    imported_entities = XCoreModeling.Import(str(file_path))
+                _logger.info("Importing file: %s", file_path)
+                imported_entities = XCoreModeling.Import(str(file_path))
 
-                    for entity in imported_entities:
-                        component_group.Add(entity)
+            except Exception:  # pylint: disable=broad-exception-caught
+                _logger.warning(
+                    "Cannot import %s, let's check next ...", file_info["path"]
+                )
 
-                    _logger.info(
-                        "Successfully imported %d entities", len(imported_entities)
-                    )
-                else:
-                    _logger.warning("File not found: %s", file_path)
+            else:
+                for entity in imported_entities:
+                    component_group.Add(entity)
 
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.error("Error importing %s: %s", file_path, str(e))
+                _logger.info(
+                    "Successfully imported %d entities", len(imported_entities)
+                )
+                is_file_imported = True
+                break
+
+        if not is_file_imported:
+            raise FileNotFoundError(
+                f"No valid files could be loaded for component '{component['id']}'"
+            )
 
     if "components" in component:
         for nested_component in component["components"]:
@@ -110,7 +130,7 @@ def load_cad_manifest(
     return loaded_components
 
 
-def _zoom_loaded_components(components: list[XCoreModeling.EntityGroup]) -> None:
+def zoom_components(components: list[XCoreModeling.EntityGroup]) -> None:
     from s4l_v1.renderer import ZoomToEntity
 
     if not components:
@@ -174,7 +194,7 @@ def main(
                 main_group.Name,
             )
 
-            _zoom_loaded_components(main_group)
+            zoom_components(main_group)
 
     except Exception as e:
         _logger.error("Fatal error: %s", str(e))
