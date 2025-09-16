@@ -15,36 +15,20 @@ from .base import HornetFlowPlugin
 
 
 @contextmanager
-def _app_lifespan() -> Iterator[XCore.Application]:
+def _app_lifespan(logger: logging.Logger) -> Iterator[XCore.Application]:
     """Context manager for the lifespan of the OSparc app."""
-    TROUBLESOME_PLUGIN_GROUP = ()
-
-    OSPARC_TROUBLESOME_UI_PLUGIN_GROUP = (
-        # CR->MaG: I had trouble running on linux if this group was only partially
-        # present.  Until the gaia runners can handle having XDisplay
-        # we need to disable all of these plugin when running tests.  For consistency
-        # I also disable them on windows.
-    )
-    with log_action(
-        logging.getLogger(__name__), "OSparc app lifespan", level=logging.DEBUG
-    ):
+    with log_action(logger, "OSparc app lifespan", level=logging.DEBUG):
         if XCore.GetApp() is not None:
             return
 
         old_log_level = XCore.GetLogLevel()
         XCore.SetLogLevel(XCore.eLogCategory.Warning)
 
-        try:
-            theapp = XCore.GetOrCreateConsoleApp(
-                plugin_black_list=list(TROUBLESOME_PLUGIN_GROUP)
-                + list(OSPARC_TROUBLESOME_UI_PLUGIN_GROUP)
-            )
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            msg = f"Failed to initialize OSparc app: {e}"
-            raise RuntimeError(msg) from e
+        theapp = XCore.GetOrCreateConsoleApp()
+        logger.debug("OSparc app initialized: %s", theapp)
 
         assert theapp == XCore.GetApp(), "App instance should be the same"
-        assert XCoreModeling.GetActiveModel(), "There should be an active model"
+        logger.debug("Active model: %s", XCoreModeling.GetActiveModel())
 
         theapp.NewDocument()
 
@@ -130,7 +114,7 @@ class OSparcPlugin(HornetFlowPlugin):
         self._manifest_path = manifest_path
 
         # setup lifespan contexts
-        app = self._stack.enter_context(_app_lifespan())
+        app = self._stack.enter_context(_app_lifespan(self._logger))
         # TODO: log info about app, model, etc
 
         self._stack.enter_context(_app_document_lifespan(app, repo_path))
