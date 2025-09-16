@@ -19,6 +19,7 @@ from rich.table import Table
 
 import hornet_flow
 from hornet_flow import service
+from hornet_flow.plugins import get_default_plugin, get_plugin
 
 console = Console()
 
@@ -370,16 +371,12 @@ def _process_manifest_with_plugin(
 ) -> None:
     """Process CAD manifest using specified plugin."""
     if not plugin_name:
-        from hornet_flow.plugins import get_default_plugin
-
         plugin_name = get_default_plugin()
 
     _logger.info("🔧 Processing CAD manifest with plugin: %s", plugin_name)
 
     plugin_instance = None
     try:
-        from hornet_flow.plugins import get_plugin
-
         plugin_class = get_plugin(plugin_name)
         plugin_instance = plugin_class()
 
