@@ -62,6 +62,7 @@
                 },
                 "files": {
                     "type": "array",
+                    "description": "List of file representations of this component, where each file contains the complete component in different formats.",
                     "items": {
                         "type": "object",
                         "required": [
