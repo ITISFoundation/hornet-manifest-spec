@@ -43,6 +43,7 @@ class OSparcPlugin(HornetFlowPlugin):
         # TODO: check if group with same name exists
         # Create a new group for this repository
         self._main_group = XCoreModeling.CreateGroup(repo_path.name)
+        # TODO: add self._main_group.SetDescription("hornet.repo_path", str(repo_path))
 
     def load_component(
         self,

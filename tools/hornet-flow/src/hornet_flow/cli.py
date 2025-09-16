@@ -49,8 +49,10 @@ app.add_typer(manifest_app, name="manifest")
 app.add_typer(cad_app, name="cad")
 
 
-def _setup_logging(verbose: bool = False, quiet: bool = False) -> None:
-    """Configure logging with RichHandler."""
+def _setup_logging(
+    verbose: bool = False, quiet: bool = False, plain: bool = False
+) -> None:
+    """Configure logging with RichHandler or plain logging."""
     if quiet:
         log_level = logging.ERROR
     elif verbose:
@@ -58,11 +60,20 @@ def _setup_logging(verbose: bool = False, quiet: bool = False) -> None:
     else:
         log_level = logging.INFO
 
-    logging.basicConfig(
-        level=log_level,
-        format="%(message)s",
-        handlers=[RichHandler(console=console, markup=True)],
-    )
+    if plain:
+        # Use plain logging for better console compatibility
+        logging.basicConfig(
+            level=log_level,
+            format="%(levelname)s: %(message)s",
+            handlers=[logging.StreamHandler()],
+        )
+    else:
+        # Use rich formatting
+        logging.basicConfig(
+            level=log_level,
+            format="%(message)s",
+            handlers=[RichHandler(console=console, markup=True, show_path=False)],
+        )
 
 
 def _handle_subprocess_error(e: subprocess.CalledProcessError, operation: str) -> None:
@@ -240,13 +251,17 @@ def workflow_run(
     quiet: Annotated[
         bool, typer.Option("--quiet", "-q", help="Only show errors")
     ] = False,
+    plain: Annotated[
+        bool,
+        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
+    ] = False,
 ) -> None:
     """
     Run a complete workflow to process hornet manifests.
 
     Can be run using a metadata file, inline repo parameters, or an existing repo path.
     """
-    _setup_logging(verbose, quiet)
+    _setup_logging(verbose, quiet, plain)
 
     # Validation: metadata_file cannot be combined with repo_url/commit
     if metadata_file and (repo_url or commit != "main"):
@@ -449,9 +464,13 @@ def repo_clone(
     quiet: Annotated[
         bool, typer.Option("--quiet", "-q", help="Only show errors")
     ] = False,
+    plain: Annotated[
+        bool,
+        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
+    ] = False,
 ) -> None:
     """Clone a repository and checkout a specific commit."""
-    _setup_logging(verbose, quiet)
+    _setup_logging(verbose, quiet, plain)
 
     _logger.info("📥 Cloning repository")
     _logger.info("🔗 Repository: %s", repo_url)
@@ -489,9 +508,13 @@ def manifest_validate(
     quiet: Annotated[
         bool, typer.Option("--quiet", "-q", help="Only show errors")
     ] = False,
+    plain: Annotated[
+        bool,
+        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
+    ] = False,
 ) -> None:
     """Validate hornet manifests against their schemas."""
-    _setup_logging(verbose, quiet)
+    _setup_logging(verbose, quiet, plain)
 
     _logger.info("✅ Validating manifests")
     _logger.info("📁 Repository: %s", repo_path)
@@ -558,9 +581,13 @@ def manifest_show(
     quiet: Annotated[
         bool, typer.Option("--quiet", "-q", help="Only show errors")
     ] = False,
+    plain: Annotated[
+        bool,
+        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
+    ] = False,
 ) -> None:
     """Display hornet manifest contents."""
-    _setup_logging(verbose, quiet)
+    _setup_logging(verbose, quiet, plain)
 
     _logger.info("📋 Showing manifests")
     _logger.info("📁 Repository: %s", repo_path)
@@ -632,9 +659,13 @@ def cad_load(
     quiet: Annotated[
         bool, typer.Option("--quiet", "-q", help="Only show errors")
     ] = False,
+    plain: Annotated[
+        bool,
+        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
+    ] = False,
 ) -> None:
     """Load CAD files referenced in the manifest using plugins."""
-    _setup_logging(verbose, quiet)
+    _setup_logging(verbose, quiet, plain)
 
     _logger.info("🔧 Loading CAD files")
     _logger.info("📁 Repository: %s", repo_path)
