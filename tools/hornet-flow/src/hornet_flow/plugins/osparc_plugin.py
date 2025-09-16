@@ -42,10 +42,14 @@ def _app_lifespan() -> Iterator[XCore.Application]:
         old_log_level = XCore.GetLogLevel()
         XCore.SetLogLevel(XCore.eLogCategory.Warning)
 
-        theapp = XCore.GetOrCreateConsoleApp(
-            plugin_black_list=list(TROUBLESOME_PLUGIN_GROUP)
-            + list(OSPARC_TROUBLESOME_UI_PLUGIN_GROUP)
-        )
+        try:
+            theapp = XCore.GetOrCreateConsoleApp(
+                plugin_black_list=list(TROUBLESOME_PLUGIN_GROUP)
+                + list(OSPARC_TROUBLESOME_UI_PLUGIN_GROUP)
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            msg = f"Failed to initialize OSparc app: {e}"
+            raise RuntimeError(msg) from e
 
         assert theapp == XCore.GetApp(), "App instance should be the same"
         assert XCoreModeling.GetActiveModel(), "There should be an active model"
