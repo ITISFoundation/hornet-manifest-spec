@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import XCoreModeling
+
 from .base import HornetFlowPlugin
 
 
@@ -12,11 +14,15 @@ class OSparcPlugin(HornetFlowPlugin):
 
     def __init__(self):
         self._name = "osparc"
-        self.logger: logging.Logger = logging.getLogger(__name__)
-        self.repo_path: Optional[Path] = None
-        self.manifest_path: Optional[Path] = None
-        self.main_group = None  # XCoreModeling.EntityGroup when available
-        self.loaded_groups = []  # Track loaded groups for cleanup
+        self._logger: logging.Logger = logging.getLogger(__name__)
+        self._repo_path: Optional[Path] = None
+        self._manifest_path: Optional[Path] = None
+        self._main_group: Optional[XCoreModeling.EntityGroup] = (
+            None  # XCoreModeling.EntityGroup when available
+        )
+        self._loaded_groups: list[
+            XCoreModeling.EntityGroup
+        ] = []  # Track loaded groups for cleanup
 
     @property
     def name(self) -> str:
@@ -27,83 +33,119 @@ class OSparcPlugin(HornetFlowPlugin):
         self, repo_path: Path, manifest_path: Path, logger: logging.Logger
     ) -> None:
         """Initialize OSparc plugin."""
-        self.logger = logger
-        self.repo_path = repo_path
-        self.manifest_path = manifest_path
-        self.logger.info("🔧 Setting up OSparc plugin")
-        self.logger.debug("Repository path: %s", repo_path)
-        self.logger.debug("Manifest path: %s", manifest_path)
+        self._logger = logger
+        self._repo_path = repo_path
+        self._manifest_path = manifest_path
 
-        # Initialize XCoreModeling if available
-        try:
-            # import XCoreModeling
-            # self.main_group = XCoreModeling.CreateGroup("MainGroup")
-            self.logger.debug("XCoreModeling initialized (placeholder)")
-        except ImportError:
-            self.logger.warning("XCoreModeling not available - running in dry-run mode")
+        # Verify s4l model
+        _ = XCoreModeling.GetActiveModel()
+
+        # TODO: check if group with same name exists
+        # Create a new group for this repository
+        self._main_group = XCoreModeling.CreateGroup(repo_path.name)
 
     def load_component(
         self,
         component_id: str,
         component_type: str,
         component_description: Optional[str],
-        component_files: list[Path],
+        component_files: list[Path],  # these are verified paths!!
         parent_id: Optional[str] = None,
     ) -> bool:
         """Load component into OSparc."""
         try:
-            self.logger.debug(
-                "Loading component: %s (type: %s, parent: %s)",
-                component_id,
-                component_type,
-                parent_id,
-            )
+            # 1. Create a group for the component and set name
+            component_group = XCoreModeling.CreateGroup(component_id)
+            self._loaded_groups.append(component_group)
 
-            # Create component group
-            # component_group = XCoreModeling.CreateGroup(component_id)
-            # self.loaded_groups.append(component_group)
+            # 2. Save metadata in Group name Properties
+            component_group.SetDescription("hornet.description", component_description)
+            component_group.SetDescription("hornet.component_id", component_id)
+            component_group.SetDescription("hornet.component_type", component_type)
 
-            # Set description if available
-            if component_description:
-                self.logger.debug("Description: %s", component_description)
+            # 3. Load component trying at least one of the provided files
+            is_file_imported = False
+            for component_path in component_files:
+                try:
+                    imported_entities = XCoreModeling.Import(str(component_path))
 
-            # Load files
-            for file_path in component_files:
-                self.logger.debug("Loading file: %s", file_path)
-                if file_path.exists():
-                    # XCoreModeling.LoadFile(str(file_path))
-                    self.logger.debug("File loaded successfully: %s", file_path.name)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    # FIXME: should be exceptionr elated with Import, not path existence etc
+                    self._logger.warning(
+                        "Cannot import %s, let's check next ...", component_path
+                    )
+
                 else:
-                    self.logger.warning("File not found: %s", file_path)
+                    component_group.Add(imported_entities)
+                    self._logger.info(
+                        "Successfully imported %d entities for component %s using %s",
+                        len(imported_entities),
+                        component_id,
+                        component_path,
+                    )
+                    is_file_imported = True
+                    break
 
-            # Add to parent group or main group
-            # if self.main_group:
-            #     self.main_group.Add(component_group)
+            if not is_file_imported:
+                raise FileNotFoundError(
+                    f"No valid files could be loaded for component '{component_id}'"
+                )
 
-            self.logger.debug("Component %s loaded successfully", component_id)
+            # 4. Add component_group to main group or parent group
+            assert self._main_group  # nosec
+
+            if parent_id is None:
+                self._main_group.Add(component_group)
+                return True
+
+            # Search for parent group in loaded groups
+            # FIXME: parent_id is in realaity a path, not just a name! we need here a name
+            parent_group = next(
+                (
+                    grp
+                    for grp in self._loaded_groups
+                    if grp.GetDescription("hornet.component_id") == parent_id
+                ),
+                None,
+            )
+            if parent_group:
+                parent_group.Add(component_group)
+                self._logger.debug(
+                    "Added group '%s' to parent group '%s'",
+                    component_group.Name,
+                    parent_group.Name,
+                )
+            else:
+                self._main_group.Add(component_group)
+                self._logger.warning(
+                    "Parent group '%s' not found. Added '%s' to main group instead.",
+                    parent_id,
+                    component_group.Name,
+                )
+
             return True
 
-        except Exception as e:  # noqa: BLE001
-            self.logger.error("Failed to load component %s: %s", component_id, e)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self._logger.exception("Failed to load component %s: %s", component_id, e)
             return False
 
     def teardown(self) -> None:
         """Clean up OSparc resources."""
-        self.logger.info("🧹 Cleaning up OSparc plugin")
+        self._logger.info("🧹 Cleaning up OSparc plugin")
 
         # Zoom to loaded components
-        if self.loaded_groups:
+        if self._loaded_groups:
             try:
                 # from s4l_v1.renderer import ZoomToEntity
                 # ZoomToEntity(self.loaded_groups, zoom_factor=1.2)
-                self.logger.debug(
-                    "Zoomed to %d loaded components", len(self.loaded_groups)
+                self._logger.debug(
+                    "Zoomed to %d loaded components", len(self._loaded_groups)
                 )
             except ImportError:
-                self.logger.debug("ZoomToEntity not available")
+                self._logger.debug("ZoomToEntity not available")
             except Exception as e:  # noqa: BLE001
-                self.logger.warning("Failed to zoom to components: %s", e)
+                self._logger.warning("Failed to zoom to components: %s", e)
 
         # Reset state
-        self.loaded_groups.clear()
-        self.main_group = None
+        self._loaded_groups.clear()
+        self._main_group = None

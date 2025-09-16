@@ -8,6 +8,38 @@ import XCoreModeling
 _logger = logging.getLogger(__name__)
 
 
+def _import_component_files(
+    component_paths: list[Path], component_group: XCoreModeling.EntityGroup
+) -> bool:
+    """Import files for a component, trying each file until one succeeds and adds to the component_group.
+
+    Args:
+        component_paths: List of file paths to try importing
+        component_group: The group to add imported entities to
+
+    Returns:
+        True if at least one file was successfully imported, False otherwise
+    """
+    is_file_imported = False
+    for component_path in component_paths:
+        try:
+            _logger.info("Importing file: %s", component_path)
+            imported_entities = XCoreModeling.Import(str(component_path))
+
+        except Exception:  # pylint: disable=broad-exception-caught
+            _logger.warning("Cannot import %s, let's check next ...", component_path)
+
+        else:
+            for entity in imported_entities:
+                component_group.Add(entity)
+
+            _logger.info("Successfully imported %d entities", len(imported_entities))
+            is_file_imported = True
+            break
+
+    return is_file_imported
+
+
 def load_component(
     component: dict[str, Any],
     parent_group: XCoreModeling.EntityGroup | None = None,
@@ -61,28 +93,8 @@ def load_component(
 
         # This is a list of files with different formats for the component
         # Import the first file that it can
-        is_file_imported = False
-        for file_info in component["files"]:
-            file_path = Path(base_path) / file_info["path"]
-
-            try:
-                _logger.info("Importing file: %s", file_path)
-                imported_entities = XCoreModeling.Import(str(file_path))
-
-            except Exception:  # pylint: disable=broad-exception-caught
-                _logger.warning(
-                    "Cannot import %s, let's check next ...", file_info["path"]
-                )
-
-            else:
-                for entity in imported_entities:
-                    component_group.Add(entity)
-
-                _logger.info(
-                    "Successfully imported %d entities", len(imported_entities)
-                )
-                is_file_imported = True
-                break
+        file_paths = [base_path / file_info["path"] for file_info in component["files"]]
+        is_file_imported = _import_component_files(file_paths, component_group)
 
         if not is_file_imported:
             raise FileNotFoundError(
@@ -91,7 +103,7 @@ def load_component(
 
     if "components" in component:
         for nested_component in component["components"]:
-            nested_result = load_component(
+            load_component(
                 nested_component, component_group, base_path, type_filter, name_filter
             )
             # If nested component was filtered out but current component has no other content,
@@ -154,6 +166,20 @@ def _load_manifest_from_file(manifest_path: Path) -> dict[str, Any]:
     except Exception as e:
         msg = f"Error reading manifest file {manifest_path}: {e}"
         raise RuntimeError(msg) from e
+
+
+def get_active_model():
+    model = XCoreModeling.GetActiveModel()
+    if model is None:
+        msg = "No active model found. Please ensure XCoreModeling is properly initialized."
+        raise RuntimeError(msg)
+    _logger.debug("Using active model: %s", model.Name)
+    return model
+
+
+def create_group(name: str) -> XCoreModeling.EntityGroup:
+    group = XCoreModeling.CreateGroup(name)
+    return group
 
 
 def main(
