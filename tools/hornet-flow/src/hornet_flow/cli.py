@@ -19,7 +19,6 @@ from rich.table import Table
 
 import hornet_flow
 from hornet_flow import service
-from hornet_flow.plugins import get_default_plugin, get_plugin
 
 console = Console()
 
@@ -370,93 +369,22 @@ def _process_manifest_with_plugin(
     name_filter: Optional[str] = None,
 ) -> None:
     """Process CAD manifest using specified plugin."""
-    plugin_name = plugin_name or get_default_plugin()
+    from hornet_flow.processors import ManifestProcessor
 
-    _logger.info("🔧 Processing CAD manifest with plugin: %s", plugin_name)
-
-    plugin_instance = None
+    processor = ManifestProcessor(plugin_name, _logger)
     try:
-        plugin_class = get_plugin(plugin_name)
-        plugin_instance = plugin_class()
-
-        # 1. Setup plugin
-        plugin_instance.setup(repo_path, cad_manifest, _logger)
-
-        # 2. Load manifest and process components
-        manifest_data = service.read_manifest_contents(cad_manifest)
-
-        success_count = 0
-        total_count = 0
-
-        for component in service.walk_manifest_components(manifest_data):
-            total_count += 1
-
-            # Apply filters
-            if type_filter and component.type != type_filter:
-                _logger.debug("Skipping component %s due to type filter", component.id)
-                continue
-            if name_filter and name_filter.lower() not in component.id.lower():
-                _logger.debug("Skipping component %s due to name filter", component.id)
-                continue
-
-            # Resolve component files
-            component_files = []
-            for file_obj in component.files:
-                file_path = service.resolve_component_file_path(
-                    cad_manifest, file_obj.path, repo_path
-                )
-                if file_path.exists():
-                    component_files.append(file_path)
-                else:
-                    _logger.error("Missing file: %s", file_path)
-                    if fail_fast:
-                        raise typer.Exit(os.EX_DATAERR)
-
-            # Process component with plugin
-            try:
-                parent_id = (
-                    "/".join(component.parent_id) if component.parent_id else None
-                )
-                success = plugin_instance.load_component(
-                    component_id=component.id,
-                    component_type=component.type,
-                    component_description=component.description,
-                    component_files=component_files,
-                    parent_id=parent_id,
-                )
-                if success:
-                    success_count += 1
-                    _logger.debug("Processed component: %s", component.id)
-                else:
-                    _logger.error("Failed to process component: %s", component.id)
-                    if fail_fast:
-                        raise typer.Exit(1)
-
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                _logger.error("Plugin error processing %s: %s", component.id, e)
-                if fail_fast:
-                    raise typer.Exit(1)
-
-        _logger.info(
-            "✅ Processed %d/%d components successfully",
-            success_count,
-            total_count,
+        success_count, total_count = processor.process_manifest(
+            cad_manifest, repo_path, fail_fast, type_filter, name_filter
         )
-
+        _logger.info(
+            "✅ Processed %d/%d components successfully", success_count, total_count
+        )
+    except (FileNotFoundError, RuntimeError) as e:
+        _logger.error("Processing failed: %s", e)
+        raise typer.Exit(1)
     except ValueError as e:
         _logger.error("Plugin error: %s", e)
-        if fail_fast:
-            raise typer.Exit(1)
-        raise
-    except Exception:  # pylint: disable=broad-exception-caught
-        # Ensure plugin cleanup even on unexpected errors
-        if plugin_instance is not None:
-            plugin_instance.teardown()
-        raise
-    else:
-        # Normal cleanup
-        if plugin_instance is not None:
-            plugin_instance.teardown()
+        raise typer.Exit(1)
 
 
 def _process_manifests(
