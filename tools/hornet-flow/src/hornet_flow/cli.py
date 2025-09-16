@@ -19,11 +19,23 @@ from rich.table import Table
 
 import hornet_flow
 from hornet_flow import service
+from hornet_flow.plugins import discover_plugins, get_default_plugin
 from hornet_flow.processors import ManifestProcessor
 
 console = Console()
 
 __version__ = "0.1.0"
+
+
+# Global state for CLI options
+class AppState:
+    def __init__(self):
+        self.verbose = False
+        self.quiet = False
+        self.plain = False
+
+
+app_state = AppState()
 
 
 def version_callback(value: bool):
@@ -92,6 +104,16 @@ def _handle_subprocess_error(e: subprocess.CalledProcessError, operation: str) -
 # Global version option
 @app.callback()
 def main(
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
+    ] = False,
+    quiet: Annotated[
+        bool, typer.Option("--quiet", "-q", help="Only show errors")
+    ] = False,
+    plain: Annotated[
+        bool,
+        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
+    ] = False,
     version: Annotated[
         Optional[bool],
         typer.Option(
@@ -101,14 +123,17 @@ def main(
 ):
     """Hornet Manifest Flow - Load and process hornet manifests"""
     _ = version
+    # Store global options in app state
+    app_state.verbose = verbose
+    app_state.quiet = quiet
+    app_state.plain = plain
+
+    # Setup logging with global options
+    _setup_logging(verbose, quiet, plain)
 
 
 @app.command("info")
-def show_info(
-    verbose: Annotated[
-        bool, typer.Option("--verbose", "-v", help="Show additional details")
-    ] = False,
-) -> None:
+def show_info() -> None:
     """Show current configuration and system information."""
 
     console.print()
@@ -129,8 +154,6 @@ def show_info(
 
     # Plugin information
     try:
-        from hornet_flow.plugins import discover_plugins, get_default_plugin
-
         plugins = discover_plugins()
         default_plugin = get_default_plugin()
 
@@ -164,8 +187,8 @@ def show_info(
         _logger.exception("Error loading plugins")
         console.print(f"  [red]Error loading plugins: {e}[/red]")
 
-    # Configuration details (verbose mode)
-    if verbose:
+    # Configuration details (verbose mode) - use global verbose option
+    if app_state.verbose:
         console.print()
         console.print("⚙️  Configuration Details")
 
@@ -245,23 +268,14 @@ def workflow_run(
     name_filter: Annotated[
         Optional[str], typer.Option("--name-filter", help="Filter components by name")
     ] = None,
-    verbose: Annotated[
-        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
-    ] = False,
-    quiet: Annotated[
-        bool, typer.Option("--quiet", "-q", help="Only show errors")
-    ] = False,
-    plain: Annotated[
-        bool,
-        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
-    ] = False,
 ) -> None:
     """
     Run a complete workflow to process hornet manifests.
 
     Can be run using a metadata file, inline repo parameters, or an existing repo path.
     """
-    _setup_logging(verbose, quiet, plain)
+    # Use global logging options - no need to call _setup_logging again
+    # as it was already called in the main callback
 
     # Validation: metadata_file cannot be combined with repo_url/commit
     if metadata_file and (repo_url or commit != "main"):
@@ -458,19 +472,8 @@ def repo_clone(
     repo_url: Annotated[str, typer.Option("--repo-url", help="Repository URL")],
     dest: Annotated[Optional[str], typer.Option("--dest", help="Destination path")],
     commit: Annotated[str, typer.Option("--commit", help="Commit hash")] = "main",
-    verbose: Annotated[
-        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
-    ] = False,
-    quiet: Annotated[
-        bool, typer.Option("--quiet", "-q", help="Only show errors")
-    ] = False,
-    plain: Annotated[
-        bool,
-        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
-    ] = False,
 ) -> None:
     """Clone a repository and checkout a specific commit."""
-    _setup_logging(verbose, quiet, plain)
 
     _logger.info("📥 Cloning repository")
     _logger.info("🔗 Repository: %s", repo_url)
@@ -502,19 +505,8 @@ def repo_clone(
 @manifest_app.command("validate")
 def manifest_validate(
     repo_path: Annotated[str, typer.Option("--repo-path", help="Repository path")],
-    verbose: Annotated[
-        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
-    ] = False,
-    quiet: Annotated[
-        bool, typer.Option("--quiet", "-q", help="Only show errors")
-    ] = False,
-    plain: Annotated[
-        bool,
-        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
-    ] = False,
 ) -> None:
     """Validate hornet manifests against their schemas."""
-    _setup_logging(verbose, quiet, plain)
 
     _logger.info("✅ Validating manifests")
     _logger.info("📁 Repository: %s", repo_path)
@@ -575,19 +567,8 @@ def manifest_show(
             click_type=Choice(["cad", "sim", "both"], case_sensitive=False),
         ),
     ] = "both",
-    verbose: Annotated[
-        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
-    ] = False,
-    quiet: Annotated[
-        bool, typer.Option("--quiet", "-q", help="Only show errors")
-    ] = False,
-    plain: Annotated[
-        bool,
-        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
-    ] = False,
 ) -> None:
     """Display hornet manifest contents."""
-    _setup_logging(verbose, quiet, plain)
 
     _logger.info("📋 Showing manifests")
     _logger.info("📁 Repository: %s", repo_path)
@@ -653,19 +634,8 @@ def cad_load(
     fail_fast: Annotated[
         bool, typer.Option("--fail-fast", help="Stop on first error")
     ] = True,
-    verbose: Annotated[
-        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
-    ] = False,
-    quiet: Annotated[
-        bool, typer.Option("--quiet", "-q", help="Only show errors")
-    ] = False,
-    plain: Annotated[
-        bool,
-        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
-    ] = False,
 ) -> None:
     """Load CAD files referenced in the manifest using plugins."""
-    _setup_logging(verbose, quiet, plain)
 
     _logger.info("🔧 Loading CAD files")
     _logger.info("📁 Repository: %s", repo_path)
