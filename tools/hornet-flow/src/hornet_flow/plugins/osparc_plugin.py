@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import XCore
 import XCoreModeling
 
 from .base import HornetFlowPlugin
@@ -17,6 +18,9 @@ class OSparcPlugin(HornetFlowPlugin):
         self._logger: logging.Logger = logging.getLogger(__name__)
         self._repo_path: Optional[Path] = None
         self._manifest_path: Optional[Path] = None
+
+        # XCore / OSparc specific attributes
+        self._app: Optional[XCore.ConsoleApp] = None  # XCore.ConsoleApp
         self._main_group: Optional[XCoreModeling.EntityGroup] = (
             None  # XCoreModeling.EntityGroup when available
         )
@@ -38,6 +42,8 @@ class OSparcPlugin(HornetFlowPlugin):
         self._manifest_path = manifest_path
 
         # Verify s4l model
+        self._app = XCore.GetOrCreateConsoleApp()
+        self._app.NewDocument()
         _ = XCoreModeling.GetActiveModel()
 
         # TODO: check if group with same name exists
@@ -60,6 +66,7 @@ class OSparcPlugin(HornetFlowPlugin):
             self._loaded_groups.append(component_group)
 
             # 2. Save metadata in Group name Properties
+            # TODO: add all headers of manifest or even the entire manifest as JSON?
             component_group.SetDescription("hornet.description", component_description)
             component_group.SetDescription("hornet.component_id", component_id)
             component_group.SetDescription("hornet.component_type", component_type)
@@ -137,6 +144,12 @@ class OSparcPlugin(HornetFlowPlugin):
                 ZoomToEntity(self._loaded_groups, zoom_factor=1.2)
             except Exception as e:  # pylint: disable=broad-exception-caught
                 self._logger.warning("Failed to zoom to components: %s", e)
+
+        # Save document
+        if self._app:
+            base_dir = self._repo_path.parent if self._repo_path else Path.cwd()
+            file_name = self._repo_path.name if self._repo_path else "hornet-model"
+            self._app.SaveDocumentAs(str(base_dir / f"{file_name}.smash"))
 
         # Reset state
         self._loaded_groups.clear()
