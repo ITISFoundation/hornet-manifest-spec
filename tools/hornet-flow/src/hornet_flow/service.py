@@ -18,10 +18,39 @@ def load_metadata(metadata_path: Path | str) -> dict[str, Any]:
     return validate_metadata(metadata)
 
 
+def check_git_version() -> Optional[str]:
+    """
+    Check if git is installed and return its version string.
+
+    Returns:
+        Git version string if available, None if git is not found or fails
+    """
+    try:
+        result = subprocess.run(
+            ["git", "--version"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+        return result.stdout.strip()
+    except (
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+    ):
+        return None
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
+
+
 def clone_repository(repo_url: str, commit_hash: str, target_dir: Path | str) -> Path:
     """Clone repository and checkout specific commit."""
     target_path = Path(target_dir)
     target_path.mkdir(parents=True, exist_ok=True)
+
+    if not repo_url.startswith("http://") and not repo_url.startswith("https://"):
+        raise ValueError(f"Repository URL must be HTTP(S): {repo_url}")
 
     # Clone with depth 1 first
     subprocess.run(
@@ -179,29 +208,3 @@ def validate_sim_manifest_references(
 ):
     """Validate that all references in sim-manifest.json exist in cad-manifest.json."""
     raise NotImplementedError
-
-
-def check_git_version() -> Optional[str]:
-    """
-    Check if git is installed and return its version string.
-
-    Returns:
-        Git version string if available, None if git is not found or fails
-    """
-    try:
-        result = subprocess.run(
-            ["git", "--version"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=5,
-        )
-        return result.stdout.strip()
-    except (
-        subprocess.CalledProcessError,
-        FileNotFoundError,
-        subprocess.TimeoutExpired,
-    ):
-        return None
-    except Exception:  # pylint: disable=broad-exception-caught
-        return None
