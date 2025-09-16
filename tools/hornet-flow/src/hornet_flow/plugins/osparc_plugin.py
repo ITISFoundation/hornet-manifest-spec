@@ -1,13 +1,92 @@
 """OSparc plugin for loading components into OSparc."""
 
+import contextlib
 import logging
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 import XCore
 import XCoreModeling
 
 from .base import HornetFlowPlugin
+
+
+@contextmanager
+def _app_lifespan() -> Iterator[XCore.ConsoleApp]:
+    """Context manager for the lifespan of the OSparc app."""
+
+    TROUBLESOME_PLUGIN_GROUP = (
+        "CPythonPlugin",  # will try to reinit python
+        "CJosuaUIPlugin",
+        "CJosuaPlugin",  # will start ares - bad for testing when don't need ares
+        "CSoftwareUpdatePlugin",  # no updates while testing!
+        "CXViewsPLugin",  # don't start UI and inject file browser delegate
+    )
+
+    OSPARC_TROUBLESOME_UI_PLUGIN_GROUP = (
+        # CR->MaG: I had trouble running on linux if this group was only partially
+        # present.  Until the gaia runners can handle having XDisplay
+        # we need to disable all of these plugin when running tests.  For consistency
+        # I also disable them on windows.
+        "CXRendererOffscreenPlugin",
+        "CModelerHeadlessPlugin",  # needed?
+    )
+
+    if XCore.GetApp() is not None:
+        return
+
+    old_log_level = XCore.GetLogLevel()
+    XCore.SetLogLevel(XCore.eLogCategory.Warning)
+
+    theapp = XCore.GetOrCreateConsoleApp(
+        plugin_black_list=list(TROUBLESOME_PLUGIN_GROUP)
+        + list(OSPARC_TROUBLESOME_UI_PLUGIN_GROUP)
+    )
+
+    assert theapp == XCore.GetApp()
+    assert XCoreModeling.GetActiveModel()
+
+    theapp.NewDocument()
+
+    try:
+        yield theapp
+    finally:
+        XCore.SetLogLevel(old_log_level)
+
+
+@contextmanager
+def _app_document_lifespan(app: XCore.ConsoleApp, repo_path: Path) -> Iterator[None]:
+    base_dir = repo_path.parent if repo_path else Path.cwd()
+    file_name = repo_path.name if repo_path else "hornet-model"
+    doc_path = base_dir / f"{file_name}.smash"
+    assert base_dir.exists()  # nosec
+
+    app.NewDocument()
+
+    try:
+        yield
+    finally:
+        XCore.GetApp().SaveDocumentAs(f"{doc_path}")
+
+
+@contextmanager
+def _app_document_main_model_group_lifespan(
+    repo_name: str,
+) -> Iterator[XCoreModeling.EntityGroup]:
+    """Context manager for the main model's group lifespan."""
+
+    main_group = XCoreModeling.CreateGroup(repo_name)
+    # TODO: add metadata as
+    # self._main_group.SetDescription("hornet.repo_path", str(repo_path))
+
+    yield main_group
+
+    # Zoom to main group if succeeds
+    with contextlib.suppress(Exception):
+        from s4l_v1.renderer import ZoomToEntity
+
+        ZoomToEntity(main_group, zoom_factor=1.2)
 
 
 class OSparcPlugin(HornetFlowPlugin):
@@ -20,13 +99,14 @@ class OSparcPlugin(HornetFlowPlugin):
         self._manifest_path: Optional[Path] = None
 
         # XCore / OSparc specific attributes
-        self._app: Optional[XCore.ConsoleApp] = None  # XCore.ConsoleApp
         self._main_group: Optional[XCoreModeling.EntityGroup] = (
             None  # XCoreModeling.EntityGroup when available
         )
         self._loaded_groups: list[
             XCoreModeling.EntityGroup
         ] = []  # Track loaded groups for cleanup
+
+        self._stack = contextlib.ExitStack()
 
     @property
     def name(self) -> str:
@@ -41,15 +121,16 @@ class OSparcPlugin(HornetFlowPlugin):
         self._repo_path = repo_path
         self._manifest_path = manifest_path
 
-        # Verify s4l model
-        self._app = XCore.GetOrCreateConsoleApp()
-        self._app.NewDocument()
-        _ = XCoreModeling.GetActiveModel()
+        # setup lifespan contexts
+        self._logger.info("🛠 Setting up OSparc plugin")
 
-        # TODO: check if group with same name exists
-        # Create a new group for this repository
-        self._main_group = XCoreModeling.CreateGroup(repo_path.name)
-        # TODO: add self._main_group.SetDescription("hornet.repo_path", str(repo_path))
+        app = self._stack.enter_context(_app_lifespan())
+        # TODO: log info about app, model, etc
+
+        self._stack.enter_context(_app_document_lifespan(app, repo_path))
+        self._main_group = self._stack.enter_context(
+            _app_document_main_model_group_lifespan(repo_path.stem)
+        )
 
     def load_component(
         self,
@@ -63,7 +144,6 @@ class OSparcPlugin(HornetFlowPlugin):
         try:
             # 1. Create a group for the component and set name
             component_group = XCoreModeling.CreateGroup(component_id)
-            self._loaded_groups.append(component_group)
 
             # 2. Save metadata in Group name Properties
             # TODO: add all headers of manifest or even the entire manifest as JSON?
@@ -126,6 +206,8 @@ class OSparcPlugin(HornetFlowPlugin):
                 parent_group.Name,
             )
 
+            self._loaded_groups.append(component_group)
+
             return True
 
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -134,22 +216,7 @@ class OSparcPlugin(HornetFlowPlugin):
 
     def teardown(self) -> None:
         """Clean up OSparc resources."""
-        self._logger.info("🧹 Cleaning up OSparc plugin")
-
-        # Zoom to loaded components
-        if self._loaded_groups:
-            try:
-                from s4l_v1.renderer import ZoomToEntity
-
-                ZoomToEntity(self._loaded_groups, zoom_factor=1.2)
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                self._logger.warning("Failed to zoom to components: %s", e)
-
-        # Save document
-        if self._app:
-            base_dir = self._repo_path.parent if self._repo_path else Path.cwd()
-            file_name = self._repo_path.name if self._repo_path else "hornet-model"
-            self._app.SaveDocumentAs(str(base_dir / f"{file_name}.smash"))
+        self._stack.close()
 
         # Reset state
         self._loaded_groups.clear()
