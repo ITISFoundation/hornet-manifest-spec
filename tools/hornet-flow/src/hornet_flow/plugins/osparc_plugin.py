@@ -138,7 +138,7 @@ class OSparcPlugin(HornetFlowPlugin):
         component_type: str,
         component_description: Optional[str],
         component_files: list[Path],  # these are verified paths!!
-        parent_id: Optional[str] = None,
+        component_parent_id: list[str],
     ) -> bool:
         """Load component into OSparc."""
         try:
@@ -182,17 +182,20 @@ class OSparcPlugin(HornetFlowPlugin):
             # 4. Add component_group to main group or parent group
             assert self._main_group  # nosec
 
-            if parent_id is None:
+            if not component_parent_id:
                 self._main_group.Add(component_group)
                 return True
 
             # Search for parent group in loaded groups
-            # FIXME: parent_id is in realaity a path, not just a name! we need here a name
+            # TODO: search in tree by path, not just last id
+            parent_component_id = (
+                component_parent_id[-1] if component_parent_id else None
+            )
             parent_group = next(
                 (
                     grp
                     for grp in self._loaded_groups
-                    if grp.GetDescription("hornet.component_id") == parent_id
+                    if grp.GetDescription("hornet.component_id") == parent_component_id
                 ),
                 None,
             )

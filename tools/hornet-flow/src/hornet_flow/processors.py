@@ -144,13 +144,12 @@ class ManifestProcessor:
         assert self.plugin_instance is not None  # nosec Should be set by process_manifest
 
         try:
-            parent_id = "/".join(component.parent_id) if component.parent_id else None
             success = self.plugin_instance.load_component(
                 component_id=component.id,
                 component_type=component.type,
                 component_description=component.description,
                 component_files=component_files,
-                parent_id=parent_id,
+                component_parent_id=component.parent_id,
             )
 
             if success:

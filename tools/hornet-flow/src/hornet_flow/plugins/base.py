@@ -28,7 +28,7 @@ class HornetFlowPlugin(ABC):
         component_type: str,
         component_description: Optional[str],
         component_files: list[Path],
-        parent_id: Optional[str] = None,
+        component_parent_id: list[str],
     ) -> bool:
         """
         Process a single component from the manifest.
@@ -38,7 +38,7 @@ class HornetFlowPlugin(ABC):
             component_type: Type of the component
             component_description: Description of the component, if any
             component_files: List of resolved file paths for this component
-            parent_id: ID of parent component if this is nested
+            component_parent_id: Path to parent components as list of IDs
 
         Returns:
             True if successful, False if failed
