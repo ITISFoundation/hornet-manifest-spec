@@ -17,21 +17,13 @@ from .base import HornetFlowPlugin
 @contextmanager
 def _app_lifespan() -> Iterator[XCore.Application]:
     """Context manager for the lifespan of the OSparc app."""
-    TROUBLESOME_PLUGIN_GROUP = (
-        "CPythonPlugin",  # will try to reinit python
-        "CJosuaUIPlugin",
-        "CJosuaPlugin",  # will start ares - bad for testing when don't need ares
-        "CSoftwareUpdatePlugin",  # no updates while testing!
-        "CXViewsPLugin",  # don't start UI and inject file browser delegate
-    )
+    TROUBLESOME_PLUGIN_GROUP = ()
 
     OSPARC_TROUBLESOME_UI_PLUGIN_GROUP = (
         # CR->MaG: I had trouble running on linux if this group was only partially
         # present.  Until the gaia runners can handle having XDisplay
         # we need to disable all of these plugin when running tests.  For consistency
         # I also disable them on windows.
-        "CXRendererOffscreenPlugin",
-        "CModelerHeadlessPlugin",  # needed?
     )
     with log_action(
         logging.getLogger(__name__), "OSparc app lifespan", level=logging.DEBUG
