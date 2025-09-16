@@ -1,5 +1,9 @@
 {
     "pylint.args": [
         "--rcfile=tools/hornet-flow/pyproject.toml"
-    ]
+    ],
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.*cache": true,
+    },
 }
