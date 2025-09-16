@@ -56,7 +56,7 @@ def _app_lifespan() -> Iterator[XCore.Application]:
 
 
 @contextmanager
-def _app_document_lifespan(app: XCore.ConsoleApp, repo_path: Path) -> Iterator[None]:
+def _app_document_lifespan(app: XCore.Application, repo_path: Path) -> Iterator[None]:
     base_dir = repo_path.parent if repo_path else Path.cwd()
     file_name = repo_path.name if repo_path else "hornet-model"
     doc_path = base_dir / f"{file_name}.smash"
