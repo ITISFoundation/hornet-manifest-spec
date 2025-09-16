@@ -15,10 +15,8 @@ from .base import HornetFlowPlugin
 
 
 @contextmanager
-@log_action(logging.getLogger(__name__), "OSparc app lifespan", level=logging.DEBUG)
 def _app_lifespan() -> Iterator[XCore.Application]:
     """Context manager for the lifespan of the OSparc app."""
-
     TROUBLESOME_PLUGIN_GROUP = (
         "CPythonPlugin",  # will try to reinit python
         "CJosuaUIPlugin",
@@ -35,53 +33,50 @@ def _app_lifespan() -> Iterator[XCore.Application]:
         "CXRendererOffscreenPlugin",
         "CModelerHeadlessPlugin",  # needed?
     )
+    with log_action(
+        logging.getLogger(__name__), "OSparc app lifespan", level=logging.DEBUG
+    ):
+        if XCore.GetApp() is not None:
+            return
 
-    if XCore.GetApp() is not None:
-        return
+        old_log_level = XCore.GetLogLevel()
+        XCore.SetLogLevel(XCore.eLogCategory.Warning)
 
-    old_log_level = XCore.GetLogLevel()
-    XCore.SetLogLevel(XCore.eLogCategory.Warning)
+        theapp = XCore.GetOrCreateConsoleApp(
+            plugin_black_list=list(TROUBLESOME_PLUGIN_GROUP)
+            + list(OSPARC_TROUBLESOME_UI_PLUGIN_GROUP)
+        )
 
-    theapp = XCore.GetOrCreateConsoleApp(
-        plugin_black_list=list(TROUBLESOME_PLUGIN_GROUP)
-        + list(OSPARC_TROUBLESOME_UI_PLUGIN_GROUP)
-    )
+        assert theapp == XCore.GetApp(), "App instance should be the same"
+        assert XCoreModeling.GetActiveModel(), "There should be an active model"
 
-    assert theapp == XCore.GetApp()
-    assert XCoreModeling.GetActiveModel()
+        theapp.NewDocument()
 
-    theapp.NewDocument()
-
-    try:
-        yield theapp
-    finally:
-        XCore.SetLogLevel(old_log_level)
+        try:
+            yield theapp
+        finally:
+            XCore.SetLogLevel(old_log_level)
 
 
 @contextmanager
-@log_action(
-    logging.getLogger(__name__), "OSparc app document lifespan", level=logging.DEBUG
-)
 def _app_document_lifespan(app: XCore.Application, repo_path: Path) -> Iterator[None]:
-    base_dir = repo_path.parent if repo_path else Path.cwd()
-    file_name = repo_path.name if repo_path else "hornet-model"
-    doc_path = base_dir / f"{file_name}.smash"
-    assert base_dir.exists()  # nosec
+    with log_action(
+        logging.getLogger(__name__), "OSparc app document lifespan", level=logging.DEBUG
+    ):
+        base_dir = repo_path.parent if repo_path else Path.cwd()
+        file_name = repo_path.name if repo_path else "hornet-model"
+        doc_path = base_dir / f"{file_name}.smash"
+        assert base_dir.exists()  # nosec
 
-    app.NewDocument()
+        app.NewDocument()
 
-    try:
-        yield
-    finally:
-        XCore.GetApp().SaveDocumentAs(f"{doc_path}")
+        try:
+            yield
+        finally:
+            XCore.GetApp().SaveDocumentAs(f"{doc_path}")
 
 
 @contextmanager
-@log_action(
-    logging.getLogger(__name__),
-    "OSparc app document main model group lifespan",
-    level=logging.DEBUG,
-)
 def _app_document_main_model_group_lifespan(
     repo_name: str,
 ) -> Iterator[XCoreModeling.EntityGroup]:
@@ -143,6 +138,7 @@ class OSparcPlugin(HornetFlowPlugin):
         # TODO: log info about app, model, etc
 
         self._stack.enter_context(_app_document_lifespan(app, repo_path))
+
         self._main_group = self._stack.enter_context(
             _app_document_main_model_group_lifespan(repo_path.stem)
         )
