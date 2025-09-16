@@ -76,7 +76,7 @@ def _setup_logging(
         # Use plain logging for better console compatibility
         logging.basicConfig(
             level=log_level,
-            format="%(levelname)s: %(message)s [%(filename)s:%(funcName)s:%(lineno)d]",
+            format="%(asctime)s %(levelname)s: %(message)s [%(filename)s:%(funcName)s:%(lineno)d]",
             handlers=[logging.StreamHandler()],
         )
     else:
@@ -84,7 +84,7 @@ def _setup_logging(
         logging.basicConfig(
             level=log_level,
             format="%(message)s",
-            handlers=[RichHandler(console=console, markup=True, show_path=False)],
+            handlers=[RichHandler(console=console, markup=True, show_path=True)],
         )
 
 
