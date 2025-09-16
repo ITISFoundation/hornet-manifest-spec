@@ -108,20 +108,15 @@ class OSparcPlugin(HornetFlowPlugin):
                 ),
                 None,
             )
-            if parent_group:
-                parent_group.Add(component_group)
-                self._logger.debug(
-                    "Added group '%s' to parent group '%s'",
-                    component_group.Name,
-                    parent_group.Name,
-                )
-            else:
-                self._main_group.Add(component_group)
-                self._logger.warning(
-                    "Parent group '%s' not found. Added '%s' to main group instead.",
-                    parent_id,
-                    component_group.Name,
-                )
+            if not parent_group:
+                parent_group = self._main_group
+
+            parent_group.Add(component_group)
+            self._logger.debug(
+                "Added group '%s' to parent group '%s'",
+                component_group.Name,
+                parent_group.Name,
+            )
 
             return True
 
@@ -136,14 +131,10 @@ class OSparcPlugin(HornetFlowPlugin):
         # Zoom to loaded components
         if self._loaded_groups:
             try:
-                # from s4l_v1.renderer import ZoomToEntity
-                # ZoomToEntity(self.loaded_groups, zoom_factor=1.2)
-                self._logger.debug(
-                    "Zoomed to %d loaded components", len(self._loaded_groups)
-                )
-            except ImportError:
-                self._logger.debug("ZoomToEntity not available")
-            except Exception as e:  # noqa: BLE001
+                from s4l_v1.renderer import ZoomToEntity
+
+                ZoomToEntity(self._loaded_groups, zoom_factor=1.2)
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 self._logger.warning("Failed to zoom to components: %s", e)
 
         # Reset state
