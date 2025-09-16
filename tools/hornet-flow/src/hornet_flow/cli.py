@@ -409,10 +409,10 @@ def _process_manifest_with_plugin(
             "✅ Processed %d/%d components successfully", success_count, total_count
         )
     except (FileNotFoundError, RuntimeError) as e:
-        _logger.error("Processing failed: %s", e)
+        _logger.exception("Processing failed: %s", e)
         raise typer.Exit(1)
     except ValueError as e:
-        _logger.error("Plugin error: %s", e)
+        _logger.exception("Plugin error: %s", e)
         raise typer.Exit(1)
 
 

@@ -11,6 +11,13 @@ from hornet_flow.plugins.base import HornetFlowPlugin
 from .model import Component
 
 
+class PluginProcessingError(Exception):
+    """Exception raised for errors in plugin processing."""
+
+    def __init__(self, msg: str, *args):
+        super().__init__(msg % args)
+
+
 class ManifestProcessor:
     """Orchestrates the processing of manifest components through plugins."""
 
@@ -42,7 +49,7 @@ class ManifestProcessor:
         """
         try:
             # 1. Setup plugin
-            self.plugin_instance = self.plugin_class() # refresh instance for each run
+            self.plugin_instance = self.plugin_class()  # refresh instance for each run
             assert self.plugin_instance is not None  # nosec
             self.plugin_instance.setup(repo_path, manifest_path, self.logger)
 
@@ -156,7 +163,10 @@ class ManifestProcessor:
                 return False
 
         except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.error("Plugin error processing %s: %s", component.id, e)
+            error = PluginProcessingError(
+                "Plugin error processing %s: %s", component.id, str(e)
+            )
             if fail_fast:
-                raise
+                raise error from e
+
             return False
