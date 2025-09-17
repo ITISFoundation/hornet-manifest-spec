@@ -1,6 +1,6 @@
 [project]
 name = "hornet-flow"
-version = "0.1.0"
+version = "0.2.0"
 description = "`hornet-flow` is a Python package for consuming GitHub repositories containing **Hornet manifest files**. It parses manifests, loads CAD models, and configures simulation environments, enabling a smooth flow from repository to simulation."
 readme = "README.md"
 authors = [
