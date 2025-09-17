@@ -27,7 +27,9 @@ from hornet_flow.processors import ManifestProcessor
 __version__ = "0.2.0"
 
 
-# Custom exceptions for CLI operations
+#
+# ERRORS: Custom exceptions and helpers for CLI operations
+#
 class HornetFlowError(Exception):
     """Base exception for hornet-flow CLI operations."""
 
@@ -81,30 +83,6 @@ def handle_command_errors(func):
     return wrapper
 
 
-# Type aliases for options repeated more than once
-VerboseOption = Annotated[
-    bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
-]
-QuietOption = Annotated[bool, typer.Option("--quiet", "-q", help="Only show errors")]
-PlainOption = Annotated[
-    bool, typer.Option("--plain", help="Use plain logging output (no rich formatting)")
-]
-RepoPathOption = Annotated[str, typer.Option("--repo-path", help="Repository path")]
-PluginOption = Annotated[
-    Optional[str],
-    typer.Option("--plugin", help="Plugin to use for processing components"),
-]
-TypeFilterOption = Annotated[
-    Optional[str], typer.Option("--type-filter", help="Filter components by type")
-]
-NameFilterOption = Annotated[
-    Optional[str], typer.Option("--name-filter", help="Filter components by name")
-]
-FailFastOption = Annotated[
-    bool, typer.Option("--fail-fast", help="Stop on first error")
-]
-
-
 def _create_processing_error(
     e: subprocess.CalledProcessError, operation: str
 ) -> ProcessingError:
@@ -124,20 +102,7 @@ def _create_processing_error(
     return ProcessingError(". ".join(error_details))
 
 
-def _validate_manifest_schema(
-    manifest_path: Path, manifest_type: str, fail_fast: bool = True
-) -> None:
-    """Validate a manifest schema with consistent error handling."""
-    try:
-        service.validate_manifest_schema(manifest_path)
-        _logger.info("%s manifest schema validation successful", manifest_type)
-    except jsonschema.ValidationError as e:
-        msg = f"{manifest_type} manifest schema validation failed: {e.message}"
-        if fail_fast:
-            raise DataValidationError(msg) from e
-        _logger.error(msg)
-
-
+## Console and logging setup
 console = Console()
 
 
@@ -151,51 +116,7 @@ class AppState:
 
 app_state = AppState()
 
-
-def _merge_global_options(
-    main_verbose: bool = False,
-    main_quiet: bool = False,
-    main_plain: bool = False,
-    cmd_verbose: bool = False,
-    cmd_quiet: bool = False,
-    cmd_plain: bool = False,
-) -> None:
-    """Merge global options from main callback and command, giving precedence to command-level options."""
-    # Command-level options take precedence
-    verbose = cmd_verbose or main_verbose
-    quiet = cmd_quiet or main_quiet
-    plain = cmd_plain or main_plain
-
-    # Update global state
-    app_state.verbose = verbose
-    app_state.quiet = quiet
-    app_state.plain = plain
-
-    # Reconfigure logging if options changed
-    _setup_logging(verbose, quiet, plain)
-
-
-def version_callback(value: bool):
-    if value:
-        console.print(f"hornet-flow version {__version__}")
-        raise typer.Exit(os.EX_OK)
-
-
-app = typer.Typer(help="Hornet Manifest Flow - Load and process hornet manifests")
-
 _logger = logging.getLogger(__name__)
-
-# Create sub-apps for each resource
-workflow_app = typer.Typer(help="Workflow operations")
-repo_app = typer.Typer(help="Repository operations")
-manifest_app = typer.Typer(help="Manifest operations")
-cad_app = typer.Typer(help="CAD operations")
-
-# Add sub-apps to main app
-app.add_typer(workflow_app, name="workflow")
-app.add_typer(repo_app, name="repo")
-app.add_typer(manifest_app, name="manifest")
-app.add_typer(cad_app, name="cad")
 
 
 def _setup_logging(
@@ -223,6 +144,97 @@ def _setup_logging(
             format="%(message)s",
             handlers=[RichHandler(console=console, markup=True, show_path=True)],
         )
+
+
+def _merge_global_options(
+    main_verbose: bool = False,
+    main_quiet: bool = False,
+    main_plain: bool = False,
+    cmd_verbose: bool = False,
+    cmd_quiet: bool = False,
+    cmd_plain: bool = False,
+) -> None:
+    """Merge global options from main callback and command, giving precedence to command-level options."""
+    # Command-level options take precedence
+    verbose = cmd_verbose or main_verbose
+    quiet = cmd_quiet or main_quiet
+    plain = cmd_plain or main_plain
+
+    # Update global state
+    app_state.verbose = verbose
+    app_state.quiet = quiet
+    app_state.plain = plain
+
+    # Reconfigure logging if options changed
+    _setup_logging(verbose, quiet, plain)
+
+
+def _validate_manifest_schema(
+    manifest_path: Path, manifest_type: str, fail_fast: bool = True
+) -> None:
+    """Validate a manifest schema with consistent error handling."""
+    try:
+        service.validate_manifest_schema(manifest_path)
+        _logger.info("%s manifest schema validation successful", manifest_type)
+    except jsonschema.ValidationError as e:
+        msg = f"{manifest_type} manifest schema validation failed: {e.message}"
+        if fail_fast:
+            raise DataValidationError(msg) from e
+        _logger.error(msg)
+
+
+def version_callback(value: bool):
+    if value:
+        console.print(f"hornet-flow version {__version__}")
+        raise typer.Exit(os.EX_OK)
+
+
+#
+# CLI APPLICATION
+#
+
+app = typer.Typer(help="Hornet Manifest Flow - Load and process hornet manifests")
+
+
+# Create sub-apps for each resource
+workflow_app = typer.Typer(help="Workflow operations")
+repo_app = typer.Typer(help="Repository operations")
+manifest_app = typer.Typer(help="Manifest operations")
+cad_app = typer.Typer(help="CAD operations")
+
+# Add sub-apps to main app
+app.add_typer(workflow_app, name="workflow")
+app.add_typer(repo_app, name="repo")
+app.add_typer(manifest_app, name="manifest")
+app.add_typer(cad_app, name="cad")
+
+
+#
+# CLI COMMANDS
+#
+
+# Type aliases for options repeated more than once
+VerboseOption = Annotated[
+    bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
+]
+QuietOption = Annotated[bool, typer.Option("--quiet", "-q", help="Only show errors")]
+PlainOption = Annotated[
+    bool, typer.Option("--plain", help="Use plain logging output (no rich formatting)")
+]
+RepoPathOption = Annotated[str, typer.Option("--repo-path", help="Repository path")]
+PluginOption = Annotated[
+    Optional[str],
+    typer.Option("--plugin", help="Plugin to use for processing components"),
+]
+TypeFilterOption = Annotated[
+    Optional[str], typer.Option("--type-filter", help="Filter components by type")
+]
+NameFilterOption = Annotated[
+    Optional[str], typer.Option("--name-filter", help="Filter components by name")
+]
+FailFastOption = Annotated[
+    bool, typer.Option("--fail-fast", help="Stop on first error")
+]
 
 
 # Global version option
