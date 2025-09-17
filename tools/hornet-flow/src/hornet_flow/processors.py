@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from hornet_flow import service
-from hornet_flow.logging_utils import log_action
+from hornet_flow.logging_utils import log_lifespan
 from hornet_flow.plugins import get_default_plugin, get_plugin
 from hornet_flow.plugins.base import HornetFlowPlugin
 
@@ -71,10 +71,11 @@ class ManifestProcessor:
         """
         # 0. Preprocessing
         repo_release = self._prepare_release_data(repo_path, repo_release)
+        self.logger.debug("Repo %s release data: %s", repo_path, repo_release)
 
         try:
             # 1. Setup plugin
-            with log_action(
+            with log_lifespan(
                 self.logger,
                 f"Setting up plugin '{self.plugin_name}'",
                 level=logging.DEBUG,
@@ -94,7 +95,7 @@ class ManifestProcessor:
                 )
 
             # 2. Load and process manifest
-            with log_action(
+            with log_lifespan(
                 self.logger,
                 f"Processing manifest '{manifest_path.name}' with plugin '{self.plugin_name}'",
                 level=logging.DEBUG,
@@ -111,7 +112,7 @@ class ManifestProcessor:
 
         finally:
             # 3. Cleanup
-            with log_action(
+            with log_lifespan(
                 self.logger,
                 f"Tearing down plugin '{self.plugin_name}'",
                 level=logging.DEBUG,

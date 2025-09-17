@@ -76,21 +76,21 @@ install-all: venv
 # Example runs
 run-example:
 	@echo "Running workflow with example metadata..."
-	uv run hornet-flow workflow run --metadata-file examples/portal-device-metadata.json --work-dir /tmp/hornet-flow --verbose
+	hornet-flow workflow run --metadata-file examples/portal-device-metadata.json --work-dir /tmp/hornet-flow --verbose
 
 
 run-clone-example:
 	@echo "Running repo clone example..."
 	mkdir -p /tmp/hornet-electrodes
-	uv run hornet-flow repo clone --repo-url https://github.com/COSMIIC-Inc/Implantables-Electrodes --dest /tmp/hornet-electrodes --verbose
+	hornet-flow repo clone --repo-url https://github.com/COSMIIC-Inc/Implantables-Electrodes --dest /tmp/hornet-electrodes --verbose
 
 run-validate-example:
 	@echo "Running manifest validation example..."
-	uv run hornet-flow manifest validate --repo-path /tmp/hornet-electrodes --verbose
+	hornet-flow manifest validate --repo-path /tmp/hornet-electrodes --verbose
 
 run-show-example:
 	@echo "Running manifest show example..."
-	uv run hornet-flow manifest show --repo-path /tmp/hornet-electrodes --type cad --verbose
+	hornet-flow manifest show --repo-path /tmp/hornet-electrodes --type cad --verbose
 
 
 # Utility targets

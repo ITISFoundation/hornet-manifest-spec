@@ -2,7 +2,7 @@ import contextlib
 import logging
 
 
-class log_action(contextlib.ContextDecorator):  # pylint: disable=invalid-name
+class log_lifespan(contextlib.ContextDecorator):  # pylint: disable=invalid-name
     """Context manager/decorator for logging action start/completion.
 
     Args:
@@ -11,12 +11,12 @@ class log_action(contextlib.ContextDecorator):  # pylint: disable=invalid-name
         level: Log level to use (default: INFO)
 
     Usage as context manager:
-        with log_action(logger, "Loading component", level=logging.DEBUG):
+        with log_lifespan(logger, "Loading component", level=logging.DEBUG):
             # your code here
             pass
 
     Usage as decorator:
-        @log_action(logger, "Processing data")
+        @log_lifespan(logger, "Processing data")
         def my_function():
             # your code here
             pass
@@ -28,20 +28,25 @@ class log_action(contextlib.ContextDecorator):  # pylint: disable=invalid-name
         action: str,
         *,
         level: int = logging.INFO,
+        stacklevel: int = 2,
+        level_if_exception: int = logging.DEBUG,
     ):
         self.logger = logger
         self.action = action
         self.level = level
+        self.level_if_exception = level_if_exception
+        self.stacklevel = stacklevel
 
     def __enter__(self):
-        self.logger.log(self.level, "%s ...", self.action, stacklevel=2)
+        self.logger.log(self.level, "%s ...", self.action, stacklevel=self.stacklevel)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is None:
-            self.logger.log(self.level, "%s [success]", self.action, stacklevel=2)
+    def __exit__(self, exc_type, exc_val, exc_tb):        
+        if exc_type is not None:
+            self.logger.log(self.level_if_exception, "%s [raised]: %s", self.action, exc_val, stacklevel=self.stacklevel)
 
-        return False  # do not suppress exceptions
+        self.logger.log(self.level, "%s [done]", self.action, stacklevel=self.stacklevel)
+        return False  # do NOT suppress exceptions
 
 
 class log_and_suppress(contextlib.ContextDecorator):  # pylint: disable=invalid-name

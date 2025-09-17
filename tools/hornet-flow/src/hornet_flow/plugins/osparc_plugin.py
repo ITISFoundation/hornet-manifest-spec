@@ -9,7 +9,7 @@ from typing import Iterator, Optional
 import XCore
 import XCoreModeling
 
-from hornet_flow.logging_utils import log_action, log_and_suppress
+from hornet_flow.logging_utils import log_and_suppress, log_lifespan
 
 from .base import HornetFlowPlugin
 
@@ -17,7 +17,7 @@ from .base import HornetFlowPlugin
 @contextmanager
 def _app_lifespan(logger: logging.Logger) -> Iterator[XCore.Application]:
     """Context manager for the lifespan of the OSparc app."""
-    with log_action(logger, "OSparc app lifespan", level=logging.DEBUG):
+    with log_lifespan(logger, "OSparc app lifespan", level=logging.DEBUG):
         if XCore.GetApp() is not None:
             return
 
@@ -42,7 +42,7 @@ def _app_lifespan(logger: logging.Logger) -> Iterator[XCore.Application]:
 def _app_document_lifespan(
     logger: logging.Logger, app: XCore.Application, repo_path: Path
 ) -> Iterator[None]:
-    with log_action(logger, "OSparc app document lifespan", level=logging.DEBUG):
+    with log_lifespan(logger, "OSparc app document lifespan", level=logging.DEBUG):
         base_dir = repo_path.parent if repo_path else Path.cwd()
         file_name = repo_path.name if repo_path else "hornet-model"
         doc_path = (base_dir / f"{file_name}.smash").resolve()
@@ -78,7 +78,7 @@ def _app_document_main_model_group_lifespan(
 
     # Zoom to main group if succeeds
     with log_and_suppress(logger, "Zooming to main group"):
-        with log_action(
+        with log_lifespan(
             logging.getLogger(__name__),
             "Zooming to main group",
             level=logging.DEBUG,
