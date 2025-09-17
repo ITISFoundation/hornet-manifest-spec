@@ -17,25 +17,25 @@ from .base import HornetFlowPlugin
 @contextmanager
 def _app_lifespan(logger: logging.Logger) -> Iterator[XCore.Application]:
     """Context manager for the lifespan of the OSparc app."""
-    with log_lifespan(logger, "OSparc app lifespan", level=logging.DEBUG):
-        if XCore.GetApp() is not None:
-            return
+    # with log_lifespan(logger, "OSparc app lifespan", level=logging.DEBUG):
+    if XCore.GetApp() is not None:
+        return
 
-        old_log_level = XCore.GetLogLevel()
-        XCore.SetLogLevel(XCore.eLogCategory.Warning)
+    old_log_level = XCore.GetLogLevel()
+    XCore.SetLogLevel(XCore.eLogCategory.Warning)
 
-        theapp = XCore.GetOrCreateConsoleApp()
-        logger.debug("OSparc app initialized: %s", theapp)
+    theapp = XCore.GetOrCreateConsoleApp()
+    logger.debug("OSparc app initialized: %s", theapp)
 
-        assert theapp == XCore.GetApp(), "App instance should be the same"
-        logger.debug("Active model: %s", XCoreModeling.GetActiveModel())
+    assert theapp == XCore.GetApp(), "App instance should be the same"
+    logger.debug("Active model: %s", XCoreModeling.GetActiveModel())
 
-        theapp.NewDocument()
+    theapp.NewDocument()
 
-        try:
-            yield theapp  # ------------------
-        finally:
-            XCore.SetLogLevel(old_log_level)
+    try:
+        yield theapp  # ------------------
+    finally:
+        XCore.SetLogLevel(old_log_level)
 
 
 @contextmanager
