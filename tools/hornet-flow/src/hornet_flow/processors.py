@@ -28,8 +28,18 @@ class ManifestProcessor:
         self.plugin_name = plugin_name or get_default_plugin()
         self.plugin_class = get_plugin(self.plugin_name)
         self.plugin_instance: Optional[HornetFlowPlugin] = None
-        # release info
-        self.repo_release: Optional[Release] = None
+
+    def _prepare_release_data(
+        self, repo_path: Path, repo_release: Optional[Release]
+    ) -> Optional[Release]:
+        """Get or extract release information."""
+        if repo_release:
+            return repo_release
+        try:
+            return service.extract_git_repo_info(repo_path)
+        except ValueError as e:
+            self.logger.warning("Could not extract git repository information: %s", e)
+            return None
 
     def process_manifest(
         self,
@@ -59,27 +69,11 @@ class ManifestProcessor:
             FileNotFoundError: If required files are missing (when fail_fast=True)
             RuntimeError: If component processing fails (when fail_fast=True)
         """
-        try:
-            # 1. Get or extract release information
-            if repo_release:
-                self.repo_release = repo_release
-                self.logger.debug(
-                    "Using provided release information: %s", repo_release.label
-                )
-            else:
-                try:
-                    self.repo_release = service.extract_git_repo_info(repo_path)
-                    self.logger.debug(
-                        "Extracted release information from git: %s",
-                        self.repo_release.label,
-                    )
-                except ValueError as e:
-                    self.logger.warning(
-                        "Could not extract git repository information: %s", e
-                    )
-                    self.repo_release = None
+        # 0. Preprocessing
+        repo_release = self._prepare_release_data(repo_path, repo_release)
 
-            # 2. Setup plugin
+        try:
+            # 1. Setup plugin
             with log_action(
                 self.logger,
                 f"Setting up plugin '{self.plugin_name}'",
@@ -91,7 +85,7 @@ class ManifestProcessor:
                 assert self.plugin_instance is not None  # nosec
                 self.plugin_instance.setup(repo_path, manifest_path, self.logger)
 
-            # 3. Load and process manifest
+            # 2. Load and process manifest
             with log_action(
                 self.logger,
                 f"Processing manifest '{manifest_path.name}' with plugin '{self.plugin_name}'",
@@ -108,7 +102,7 @@ class ManifestProcessor:
                 )
 
         finally:
-            # 4. Cleanup
+            # 3. Cleanup
             with log_action(
                 self.logger,
                 f"Tearing down plugin '{self.plugin_name}'",
