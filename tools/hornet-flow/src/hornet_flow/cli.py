@@ -23,7 +23,7 @@ from hornet_flow import service
 from hornet_flow.plugins import discover_plugins, get_default_plugin
 from hornet_flow.processors import ManifestProcessor
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # Type aliases for options repeated more than once
 VerboseOption = Annotated[

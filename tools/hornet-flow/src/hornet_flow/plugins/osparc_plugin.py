@@ -33,7 +33,7 @@ def _app_lifespan(logger: logging.Logger) -> Iterator[XCore.Application]:
         theapp.NewDocument()
 
         try:
-            yield theapp
+            yield theapp  # ------------------
         finally:
             XCore.SetLogLevel(old_log_level)
 
@@ -51,7 +51,7 @@ def _app_document_lifespan(
         app.NewDocument()
 
         try:
-            yield
+            yield  # ------------------
         finally:
             logger.debug("Saving to %s", doc_path)
             is_saved = XCore.GetApp().SaveDocumentAs(f"{doc_path}")
@@ -63,14 +63,18 @@ def _app_document_lifespan(
 def _app_document_main_model_group_lifespan(
     logger: logging.Logger,
     repo_name: str,
+    repo_url: Optional[str] = None,
+    repo_commit: Optional[str] = None,
 ) -> Iterator[XCoreModeling.EntityGroup]:
     """Context manager for the main model's group lifespan."""
 
     main_group = XCoreModeling.CreateGroup(repo_name)
-    # TODO: add metadata as
-    # self._main_group.SetDescription("hornet.repo_path", str(repo_path))
+    if repo_url:
+        main_group.SetDescription("hornet.repo_url", repo_url)
+    if repo_commit:
+        main_group.SetDescription("hornet.repo_commit", repo_commit)
 
-    yield main_group
+    yield main_group  # ------------------
 
     # Zoom to main group if succeeds
     with log_and_suppress(logger, "Zooming to main group"):
@@ -133,7 +137,12 @@ class OSparcPlugin(HornetFlowPlugin):
         self._stack.enter_context(_app_document_lifespan(self._logger, app, repo_path))
 
         self._main_group = self._stack.enter_context(
-            _app_document_main_model_group_lifespan(self._logger, repo_path.stem)
+            _app_document_main_model_group_lifespan(
+                self._logger,
+                repo_name=repo_path.stem,
+                repo_url=repo_url,
+                repo_commit=repo_commit,
+            )
         )
 
     def load_component(
@@ -152,14 +161,11 @@ class OSparcPlugin(HornetFlowPlugin):
 
             # 2. Save metadata in Group name Properties
             self._logger.debug("Saving metadata for component %s", component_id)
-            # TODO: add all headers of manifest or even the entire manifest as JSON?
             component_group.SetDescription("hornet.description", component_description)
             component_group.SetDescription("hornet.component_id", component_id)
             component_group.SetDescription("hornet.component_type", component_type)
-            if self._repo_url:
-                component_group.SetDescription("hornet.repo_url", self._repo_url)
-            if self._repo_commit:
-                component_group.SetDescription("hornet.repo_commit", self._repo_commit)
+            # TODO: add all headers of manifest or even the entire manifest as JSON?
+            # TODO: add sim manifest info on the component
 
             # 3. Load component trying at least one of the provided files
             is_file_imported = False
