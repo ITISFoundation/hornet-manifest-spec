@@ -79,11 +79,19 @@ class ManifestProcessor:
                 f"Setting up plugin '{self.plugin_name}'",
                 level=logging.DEBUG,
             ):
-                self.plugin_instance = (
-                    self.plugin_class()
-                )  # refresh instance for each run
+                # refresh instance for each run
+                self.plugin_instance = self.plugin_class()
+
                 assert self.plugin_instance is not None  # nosec
-                self.plugin_instance.setup(repo_path, manifest_path, self.logger)
+
+                # Extract repo_url and repo_commit from release if available
+                self.plugin_instance.setup(
+                    repo_path,
+                    manifest_path,
+                    self.logger,
+                    repo_url=repo_release.url if repo_release else None,
+                    repo_commit=repo_release.marker if repo_release else None,
+                )
 
             # 2. Load and process manifest
             with log_action(

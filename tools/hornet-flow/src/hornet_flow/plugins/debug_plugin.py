@@ -21,16 +21,23 @@ class DebugPlugin(HornetFlowPlugin):
         return self._name
 
     def setup(
-        self, repo_path: Path, manifest_path: Path, logger: logging.Logger
+        self,
+        repo_path: Path,
+        manifest_path: Path,
+        logger: logging.Logger,
+        repo_url: Optional[str] = None,
+        repo_commit: Optional[str] = None,
     ) -> None:
         """Initialize debug plugin."""
         self.logger = logger
         self.component_count = 0
 
         self.logger.info("🐛 Setting up Debug plugin")
-        self.logger.debug("Repository: %s", repo_path)
-        self.logger.debug("Manifest: %s", manifest_path)
-        self.logger.debug("Logger: %s", logger.name)
+        self.logger.info("-Repository: %s", repo_path)
+        self.logger.info("-Manifest: %s", manifest_path)
+        self.logger.info("-Logger: %s", logger.name)
+        self.logger.info("-Repository URL: %s", repo_url)
+        self.logger.info("-Repository commit: %s", repo_commit)
 
     def load_component(
         self,

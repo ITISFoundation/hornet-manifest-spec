@@ -93,6 +93,8 @@ class OSparcPlugin(HornetFlowPlugin):
         self._logger: logging.Logger = logging.getLogger(__name__)
         self._repo_path: Optional[Path] = None
         self._manifest_path: Optional[Path] = None
+        self._repo_url: Optional[str] = None
+        self._repo_commit: Optional[str] = None
 
         # XCore / OSparc specific attributes
         self._main_group: Optional[XCoreModeling.EntityGroup] = (
@@ -110,11 +112,18 @@ class OSparcPlugin(HornetFlowPlugin):
         return self._name
 
     def setup(
-        self, repo_path: Path, manifest_path: Path, logger: logging.Logger
+        self,
+        repo_path: Path,
+        manifest_path: Path,
+        logger: logging.Logger,
+        repo_url: Optional[str] = None,
+        repo_commit: Optional[str] = None,
     ) -> None:
         """Initialize OSparc plugin."""
         self._logger = logger
         self._repo_path = repo_path
+        self._repo_url = repo_url
+        self._repo_commit = repo_commit
         self._manifest_path = manifest_path
 
         # setup lifespan contexts
@@ -147,6 +156,10 @@ class OSparcPlugin(HornetFlowPlugin):
             component_group.SetDescription("hornet.description", component_description)
             component_group.SetDescription("hornet.component_id", component_id)
             component_group.SetDescription("hornet.component_type", component_type)
+            if self._repo_url:
+                component_group.SetDescription("hornet.repo_url", self._repo_url)
+            if self._repo_commit:
+                component_group.SetDescription("hornet.repo_commit", self._repo_commit)
 
             # 3. Load component trying at least one of the provided files
             is_file_imported = False

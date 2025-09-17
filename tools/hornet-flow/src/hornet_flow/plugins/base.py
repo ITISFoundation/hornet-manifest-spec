@@ -11,7 +11,12 @@ class HornetFlowPlugin(ABC):
 
     @abstractmethod
     def setup(
-        self, repo_path: Path, manifest_path: Path, logger: logging.Logger
+        self,
+        repo_path: Path,
+        manifest_path: Path,
+        logger: logging.Logger,
+        repo_url: Optional[str] = None,
+        repo_commit: Optional[str] = None,
     ) -> None:
         """Initialize plugin with repository and manifest context.
 
@@ -19,6 +24,8 @@ class HornetFlowPlugin(ABC):
             repo_path: Path to the repository root
             manifest_path: Path to the manifest file being processed
             logger: Logger instance for plugin to use
+            repo_url: Repository URL from release info (if available)
+            repo_commit: Repository commit hash from release info (if available)
         """
 
     @abstractmethod
