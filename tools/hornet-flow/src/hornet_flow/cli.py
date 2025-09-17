@@ -104,6 +104,26 @@ FailFastOption = Annotated[
     bool, typer.Option("--fail-fast", help="Stop on first error")
 ]
 
+
+def _create_processing_error(
+    e: subprocess.CalledProcessError, operation: str
+) -> ProcessingError:
+    """Handle subprocess errors with detailed logging and return a ProcessingError."""
+    error_details = [f"Failed to {operation}"]
+    if e.cmd:
+        error_details.append(f"Command: {' '.join(e.cmd)}")
+    error_details.append(f"Exit code: {e.returncode}")
+
+    if e.stdout:
+        stdout = e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout
+        error_details.append(f"stdout: {stdout}")
+    if e.stderr:
+        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr
+        error_details.append(f"stderr: {stderr}")
+
+    return ProcessingError(". ".join(error_details))
+
+
 console = Console()
 
 
@@ -144,7 +164,7 @@ def _merge_global_options(
 def version_callback(value: bool):
     if value:
         console.print(f"hornet-flow version {__version__}")
-        raise typer.Exit()
+        raise typer.Exit(os.EX_OK)
 
 
 app = typer.Typer(help="Hornet Manifest Flow - Load and process hornet manifests")
@@ -189,25 +209,6 @@ def _setup_logging(
             format="%(message)s",
             handlers=[RichHandler(console=console, markup=True, show_path=True)],
         )
-
-
-def _create_processing_error(
-    e: subprocess.CalledProcessError, operation: str
-) -> ProcessingError:
-    """Handle subprocess errors with detailed logging and return a ProcessingError."""
-    error_details = [f"Failed to {operation}"]
-    if e.cmd:
-        error_details.append(f"Command: {' '.join(e.cmd)}")
-    error_details.append(f"Exit code: {e.returncode}")
-
-    if e.stdout:
-        stdout = e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout
-        error_details.append(f"stdout: {stdout}")
-    if e.stderr:
-        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr
-        error_details.append(f"stderr: {stderr}")
-
-    return ProcessingError(". ".join(error_details))
 
 
 # Global version option
@@ -508,9 +509,10 @@ def _process_manifests(
         _logger.info("Found SIM manifest: %s", sim_manifest)
 
     if not cad_manifest and not sim_manifest:
-        _logger.error("No hornet manifest files found in repository")
+        msg = f"No hornet manifest files found in repository at {repo_path}"
         if fail_fast:
-            raise InputFileNotFoundError("No hornet manifest files found in repository")
+            raise InputFileNotFoundError(msg)
+        _logger.error(msg)
         return
 
     # 2. Validate manifests
@@ -519,17 +521,18 @@ def _process_manifests(
         try:
             service.validate_manifest_schema(cad_manifest)
             _logger.info("CAD manifest schema validation successful")
+
         except jsonschema.ValidationError as e:
-            _logger.error("CAD manifest schema validation failed: %s", e.message)
+            msg = f"CAD manifest schema validation failed: {e.message}"
             if fail_fast:
-                raise DataValidationError(
-                    f"CAD manifest schema validation failed: {e.message}"
-                ) from e
+                raise DataValidationError(msg) from e
+            _logger.error(msg)
 
     if sim_manifest:
         try:
             service.validate_manifest_schema(sim_manifest)
             _logger.info("SIM manifest schema validation successful")
+
         except jsonschema.ValidationError as e:
             _logger.error("SIM manifest schema validation failed: %s", e.message)
             if fail_fast:
@@ -570,8 +573,8 @@ def repo_clone(
     )
 
     _logger.info("📥 Cloning repository")
-    _logger.info("🔗 Repository: %s", repo_url)
-    _logger.info("📌 Commit: %s", commit)
+    _logger.info(" 🔗 Repository: %s", repo_url)
+    _logger.info(" 📌 Commit: %s", commit)
 
     dest_path = Path(dest or tempfile.gettempdir()).resolve()
     _logger.info("📁 Destination: %s", dest_path)
@@ -611,7 +614,7 @@ def manifest_validate(
     )
 
     _logger.info("✅ Validating manifests")
-    _logger.info("📁 Repository: %s", repo_path)
+    _logger.info(" 📁 Repository: %s", repo_path)
 
     repo_dir = Path(repo_path)
 
@@ -626,7 +629,6 @@ def manifest_validate(
         progress.update(find_task, description="Manifest files found")
 
         if not cad_manifest and not sim_manifest:
-            _logger.error("❌ No hornet manifest files found")
             raise InputFileNotFoundError("No hornet manifest files found")
 
         if cad_manifest:
@@ -690,21 +692,18 @@ def manifest_show(
     # Check if requested manifests exist
     if manifest_type.lower() in ["cad", "both"] and not cad_manifest:
         if manifest_type.lower() == "cad":
-            _logger.error("❌ No CAD manifest found")
             raise InputFileNotFoundError("No CAD manifest found")
         else:
             _logger.warning("⚠️  No CAD manifest found")
 
     if manifest_type.lower() in ["sim", "both"] and not sim_manifest:
         if manifest_type.lower() == "sim":
-            _logger.error("❌ No SIM manifest found")
             raise InputFileNotFoundError("No SIM manifest found")
         else:
             _logger.warning("⚠️  No SIM manifest found")
 
     # If both requested but neither found
     if manifest_type.lower() == "both" and not cad_manifest and not sim_manifest:
-        _logger.error("❌ No hornet manifest files found")
         raise InputFileNotFoundError("No hornet manifest files found")
 
     # Show CAD manifest if requested and exists
@@ -744,13 +743,12 @@ def cad_load(
     )
 
     _logger.info("🔧 Loading CAD files")
-    _logger.info("📁 Repository: %s", repo_path)
+    _logger.info(" 📁 Repository: %s", repo_path)
 
     repo_dir = Path(repo_path)
     cad_manifest, _ = service.find_hornet_manifests(repo_dir)
 
     if not cad_manifest:
-        _logger.error("❌ No CAD manifest found")
         raise InputFileNotFoundError("No CAD manifest found")
 
     # 1. Validate manifest schema first
@@ -759,11 +757,10 @@ def cad_load(
         service.validate_manifest_schema(cad_manifest)
         _logger.info("CAD manifest schema validation successful")
     except jsonschema.ValidationError as e:
-        _logger.error("CAD manifest schema validation failed: %s", e.message)
+        msg = f"CAD manifest schema validation failed: {e.message}"
         if fail_fast:
-            raise DataValidationError(
-                f"CAD manifest schema validation failed: {e.message}"
-            ) from e
+            raise DataValidationError(msg) from e
+        _logger.error(msg)
 
     # 2. Process with plugin
     _process_manifest_with_plugin(
