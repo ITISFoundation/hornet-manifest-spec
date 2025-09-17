@@ -166,9 +166,6 @@ def _validate_manifest_files(
                     "marker": "main",
                 }
             },
-            marks=pytest.mark.xfail(
-                reason="Expected to fail - repository under development"
-            ),
             id="carsscenter",
         ),
     ],
