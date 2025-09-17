@@ -72,6 +72,11 @@ def test_clone_repository(tmp_path: Path, commit_hash: str):
         assert folder_path.exists(), f"Expected folder '{folder_name}' not found"
         assert folder_path.is_dir(), f"'{folder_name}' exists but is not a directory"
 
+    repo_release = service.extract_git_repo_info(repo_path)
+    assert repo_release.url == repo_url
+    if commit_hash != "main":
+        assert repo_release.marker == commit_hash
+
 
 def test_walk_cad_manifest_components(repo_path: Path, tmp_path: Path):
     """Test walking through CAD manifest components and validating with Pydantic model."""

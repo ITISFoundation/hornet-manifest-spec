@@ -331,6 +331,7 @@ def workflow_run(
     _logger.info("🚀 Running Hornet Workflow")
 
     try:
+        release = None
         if metadata_file:
             _logger.info("📄 Loading metadata from: %s", metadata_file)
 
@@ -344,7 +345,7 @@ def workflow_run(
             target_repo_path = Path(repo_path)
 
             _process_manifests(
-                target_repo_path, fail_fast, plugin, type_filter, name_filter
+                target_repo_path, fail_fast, plugin, type_filter, name_filter, release
             )
         else:
             assert repo_url  # nosec
@@ -380,7 +381,12 @@ def workflow_run(
 
                 # Process manifests
                 _process_manifests(
-                    target_repo_path, fail_fast, plugin, type_filter, name_filter
+                    target_repo_path,
+                    fail_fast,
+                    plugin,
+                    type_filter,
+                    name_filter,
+                    release,
                 )
 
                 _logger.info("Repository kept at: %s", target_repo_path)
@@ -406,13 +412,14 @@ def _process_manifest_with_plugin(
     plugin_name: Optional[str] = None,
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
+    repo_release: Optional[service.Release] = None,
 ) -> None:
     """Process CAD manifest using specified plugin."""
 
     processor = ManifestProcessor(plugin_name, _logger)
     try:
         success_count, total_count = processor.process_manifest(
-            cad_manifest, repo_path, fail_fast, type_filter, name_filter
+            cad_manifest, repo_path, fail_fast, type_filter, name_filter, repo_release
         )
         _logger.info(
             "✅ Processed %d/%d components successfully", success_count, total_count
@@ -434,6 +441,7 @@ def _process_manifests(
     plugin_name: Optional[str] = None,
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
+    release: Optional[service.Release] = None,
 ) -> None:
     """Process manifests found in repository using specified plugin."""
     # 1. Find hornet manifests
@@ -474,7 +482,13 @@ def _process_manifests(
     # 3. Process CAD manifest with plugin
     if cad_manifest:
         _process_manifest_with_plugin(
-            cad_manifest, repo_path, fail_fast, plugin_name, type_filter, name_filter
+            cad_manifest,
+            repo_path,
+            fail_fast,
+            plugin_name,
+            type_filter,
+            name_filter,
+            release,
         )
 
 

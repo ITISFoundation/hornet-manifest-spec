@@ -9,7 +9,7 @@ from hornet_flow.logging_utils import log_action
 from hornet_flow.plugins import get_default_plugin, get_plugin
 from hornet_flow.plugins.base import HornetFlowPlugin
 
-from .model import Component
+from .model import Component, Release
 
 
 class PluginProcessingError(Exception):
@@ -28,6 +28,8 @@ class ManifestProcessor:
         self.plugin_name = plugin_name or get_default_plugin()
         self.plugin_class = get_plugin(self.plugin_name)
         self.plugin_instance: Optional[HornetFlowPlugin] = None
+        # release info
+        self.repo_release: Optional[Release] = None
 
     def process_manifest(
         self,
@@ -36,9 +38,18 @@ class ManifestProcessor:
         fail_fast: bool = False,
         type_filter: Optional[str] = None,
         name_filter: Optional[str] = None,
+        repo_release: Optional[Release] = None,
     ) -> tuple[int, int]:
         """
         Process a manifest file using the configured plugin.
+
+        Args:
+            manifest_path: Path to the manifest file
+            repo_path: Path to the repository
+            fail_fast: Whether to stop on first error
+            type_filter: Filter components by type
+            name_filter: Filter components by name pattern
+            release: Release information (will be extracted from git if not provided)
 
         Returns:
             Tuple of (successful_components, total_components)
@@ -49,7 +60,26 @@ class ManifestProcessor:
             RuntimeError: If component processing fails (when fail_fast=True)
         """
         try:
-            # 1. Setup plugin
+            # 1. Get or extract release information
+            if repo_release:
+                self.repo_release = repo_release
+                self.logger.debug(
+                    "Using provided release information: %s", repo_release.label
+                )
+            else:
+                try:
+                    self.repo_release = service.extract_git_repo_info(repo_path)
+                    self.logger.debug(
+                        "Extracted release information from git: %s",
+                        self.repo_release.label,
+                    )
+                except ValueError as e:
+                    self.logger.warning(
+                        "Could not extract git repository information: %s", e
+                    )
+                    self.repo_release = None
+
+            # 2. Setup plugin
             with log_action(
                 self.logger,
                 f"Setting up plugin '{self.plugin_name}'",
@@ -61,7 +91,7 @@ class ManifestProcessor:
                 assert self.plugin_instance is not None  # nosec
                 self.plugin_instance.setup(repo_path, manifest_path, self.logger)
 
-            # 2. Load and process manifest
+            # 3. Load and process manifest
             with log_action(
                 self.logger,
                 f"Processing manifest '{manifest_path.name}' with plugin '{self.plugin_name}'",
@@ -78,7 +108,7 @@ class ManifestProcessor:
                 )
 
         finally:
-            # 3. Cleanup
+            # 4. Cleanup
             with log_action(
                 self.logger,
                 f"Tearing down plugin '{self.plugin_name}'",
