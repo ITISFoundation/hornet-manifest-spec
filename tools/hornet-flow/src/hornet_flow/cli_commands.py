@@ -21,7 +21,7 @@ from .api import (
     validate_manifests_api,
 )
 from .cli_exceptions import handle_command_errors
-from .cli_state import app_logger, console, merge_global_options
+from .cli_state import app_console, app_logger, merge_global_options
 
 # Type aliases for options repeated more than once
 VerboseOption = Annotated[
@@ -105,7 +105,7 @@ def workflow_run_cmd(
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
-            console=console,
+            console=app_console,
             transient=True,
         ) as progress:
             task = progress.add_task("Processing workflow...", total=None)
@@ -177,7 +177,7 @@ def repo_clone_cmd(
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        console=console,
+        console=app_console,
         transient=True,
     ) as progress:
         task = progress.add_task(f"Cloning repository to {dest_path}...", total=None)
@@ -216,7 +216,7 @@ def manifest_validate_cmd(
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        console=console,
+        console=app_console,
         transient=True,
     ) as progress:
         find_task = progress.add_task("Finding manifest files...", total=None)
@@ -270,13 +270,13 @@ def manifest_show_cmd(
     # CLI-specific output formatting
     if "cad" in manifest_data:
         app_logger.info("📄 CAD Manifest found")
-        console.print_json(data=manifest_data["cad"])
+        app_console.print_json(data=manifest_data["cad"])
         if "sim" in manifest_data:
-            console.print()  # Add blank line between manifests
+            app_console.print()  # Add blank line between manifests
 
     if "sim" in manifest_data:
         app_logger.info("📄 SIM Manifest found")
-        console.print_json(data=manifest_data["sim"])
+        app_console.print_json(data=manifest_data["sim"])
 
 
 @handle_command_errors

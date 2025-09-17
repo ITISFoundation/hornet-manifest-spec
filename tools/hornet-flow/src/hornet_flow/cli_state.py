@@ -8,10 +8,11 @@ import logging
 from dataclasses import dataclass
 
 from rich.console import Console
-from rich.logging import RichHandler
+
+from .logging_utils import setup_logging
 
 # Global console instance
-console = Console()
+app_console = Console()
 
 # Global logger
 app_logger = logging.getLogger(__name__)
@@ -27,33 +28,6 @@ class AppState:
 
 # Global app state instance
 app_state = AppState()
-
-
-def setup_logging(
-    verbose: bool = False, quiet: bool = False, plain: bool = False
-) -> None:
-    """Configure logging with RichHandler or plain logging."""
-    if quiet:
-        log_level = logging.ERROR
-    elif verbose:
-        log_level = logging.DEBUG
-    else:
-        log_level = logging.INFO
-
-    if plain:
-        # Use plain logging for better console compatibility
-        logging.basicConfig(
-            level=log_level,
-            format="%(asctime)s %(levelname)s: %(message)s [%(filename)s:%(funcName)s:%(lineno)d]",
-            handlers=[logging.StreamHandler()],
-        )
-    else:
-        # Use rich formatting
-        logging.basicConfig(
-            level=log_level,
-            format="%(message)s",
-            handlers=[RichHandler(console=console, markup=True, show_path=True)],
-        )
 
 
 def merge_global_options(
@@ -76,4 +50,4 @@ def merge_global_options(
     app_state.plain = plain
 
     # Reconfigure logging if options changed
-    setup_logging(verbose, quiet, plain)
+    setup_logging(verbose, quiet, plain, console=app_console)

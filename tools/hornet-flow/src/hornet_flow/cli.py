@@ -29,14 +29,14 @@ from .cli_commands import (
     repo_clone_cmd,
     workflow_run_cmd,
 )
-from .cli_state import app_logger, app_state, console, merge_global_options
+from .cli_state import app_console, app_logger, app_state, merge_global_options
 
 __version__ = "0.2.0"
 
 
 def version_callback(value: bool):
     if value:
-        console.print(f"hornet-flow version {__version__}")
+        app_console.print(f"hornet-flow version {__version__}")
         raise typer.Exit(os.EX_OK)
 
 
@@ -83,8 +83,8 @@ def show_info(
 
     merge_global_options(app_state.verbose, False, False, verbose, False, False)
 
-    console.print()
-    console.print(Panel.fit("🔧 Hornet Flow Configuration", style="bold blue"))
+    app_console.print()
+    app_console.print(Panel.fit("🔧 Hornet Flow Configuration", style="bold blue"))
 
     # Version information
     version_table = Table(show_header=False, box=None, padding=(0, 1))
@@ -102,17 +102,17 @@ def show_info(
     else:
         version_table.add_row("Git", "[red]Not found or not working[/red]")
 
-    console.print()
-    console.print("📋 Version Information")
-    console.print(version_table)
+    app_console.print()
+    app_console.print("📋 Version Information")
+    app_console.print(version_table)
 
     # Plugin information
     try:
         plugins = discover_plugins()
         default_plugin = get_default_plugin()
 
-        console.print()
-        console.print("🔌 Available Plugins")
+        app_console.print()
+        app_console.print("🔌 Available Plugins")
 
         if plugins:
             plugin_table = Table(show_header=True, box=None, padding=(0, 1))
@@ -133,18 +133,18 @@ def show_info(
 
                 plugin_table.add_row(plugin_name, status, description)
 
-            console.print(plugin_table)
+            app_console.print(plugin_table)
         else:
-            console.print("  [red]No plugins found[/red]")
+            app_console.print("  [red]No plugins found[/red]")
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         app_logger.exception("Error loading plugins")
-        console.print(f"  [red]Error loading plugins: {e}[/red]")
+        app_console.print(f"  [red]Error loading plugins: {e}[/red]")
 
     # Configuration details (verbose mode) - use global verbose option
     if verbose:
-        console.print()
-        console.print("⚙️  Configuration Details")
+        app_console.print()
+        app_console.print("⚙️  Configuration Details")
 
         config_table = Table(show_header=False, box=None, padding=(0, 1))
         config_table.add_column("Setting", style="cyan", min_width=25)
@@ -163,11 +163,11 @@ def show_info(
         temp_dir = tempfile.gettempdir()
         config_table.add_row("Temp Directory", temp_dir)
 
-        console.print(config_table)
+        app_console.print(config_table)
 
         # Show environment variables if relevant
-        console.print()
-        console.print("🌍 Environment")
+        app_console.print()
+        app_console.print("🌍 Environment")
         env_table = Table(show_header=False, box=None, padding=(0, 1))
         env_table.add_column("Variable", style="cyan", min_width=25)
         env_table.add_column("Value", style="dim")
@@ -181,12 +181,12 @@ def show_info(
                 value = value[:57] + "..."
             env_table.add_row(var, value)
 
-        console.print(env_table)
+        app_console.print(env_table)
 
-    console.print()
-    console.print("💡 Use [cyan]--verbose[/cyan] for more details")
-    console.print("💡 Use [cyan]hornet-flow --help[/cyan] to see all commands")
-    console.print()
+    app_console.print()
+    app_console.print("💡 Use [cyan]--verbose[/cyan] for more details")
+    app_console.print("💡 Use [cyan]hornet-flow --help[/cyan] to see all commands")
+    app_console.print()
 
 
 # Add sub-apps to main app

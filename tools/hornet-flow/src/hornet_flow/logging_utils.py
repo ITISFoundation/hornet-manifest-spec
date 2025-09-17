@@ -1,5 +1,39 @@
 import contextlib
 import logging
+from typing import Optional
+
+from rich.console import Console
+from rich.logging import RichHandler
+
+
+def setup_logging(
+    verbose: bool = False,
+    quiet: bool = False,
+    plain: bool = False,
+    console: Optional[Console] = None,
+) -> None:
+    """Configure logging with RichHandler or plain logging."""
+    if quiet:
+        log_level = logging.ERROR
+    elif verbose:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+
+    if plain:
+        # Use plain logging for better console compatibility
+        logging.basicConfig(
+            level=log_level,
+            format="%(asctime)s %(levelname)s: %(message)s [%(filename)s:%(funcName)s:%(lineno)d]",
+            handlers=[logging.StreamHandler()],
+        )
+    else:
+        # Use rich formatting
+        logging.basicConfig(
+            level=log_level,
+            format="%(message)s",
+            handlers=[RichHandler(console=console, markup=True, show_path=True)],
+        )
 
 
 class log_lifespan(contextlib.ContextDecorator):  # pylint: disable=invalid-name
@@ -41,11 +75,19 @@ class log_lifespan(contextlib.ContextDecorator):  # pylint: disable=invalid-name
         self.logger.log(self.level, "%s ...", self.action, stacklevel=self.stacklevel)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):        
+    def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:
-            self.logger.log(self.level_if_exception, "%s [raised]: %s", self.action, exc_val, stacklevel=self.stacklevel)
+            self.logger.log(
+                self.level_if_exception,
+                "%s [raised]: %s",
+                self.action,
+                exc_val,
+                stacklevel=self.stacklevel,
+            )
 
-        self.logger.log(self.level, "%s [done]", self.action, stacklevel=self.stacklevel)
+        self.logger.log(
+            self.level, "%s [done]", self.action, stacklevel=self.stacklevel
+        )
         return False  # do NOT suppress exceptions
 
 
