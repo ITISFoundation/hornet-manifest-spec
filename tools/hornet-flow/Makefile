@@ -78,8 +78,10 @@ run-example:
 	@echo "Running workflow with example metadata..."
 	uv run hornet-flow workflow run --metadata-file examples/portal-device-metadata.json --work-dir /tmp/hornet-flow --verbose
 
+
 run-clone-example:
 	@echo "Running repo clone example..."
+	mkdir -p /tmp/hornet-electrodes
 	uv run hornet-flow repo clone --repo-url https://github.com/COSMIIC-Inc/Implantables-Electrodes --dest /tmp/hornet-electrodes --verbose
 
 run-validate-example:

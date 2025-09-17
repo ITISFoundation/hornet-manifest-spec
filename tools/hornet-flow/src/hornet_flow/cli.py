@@ -25,6 +25,28 @@ from hornet_flow.processors import ManifestProcessor
 
 __version__ = "0.1.0"
 
+# Type aliases for options repeated more than once
+VerboseOption = Annotated[
+    bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
+]
+QuietOption = Annotated[bool, typer.Option("--quiet", "-q", help="Only show errors")]
+PlainOption = Annotated[
+    bool, typer.Option("--plain", help="Use plain logging output (no rich formatting)")
+]
+RepoPathOption = Annotated[str, typer.Option("--repo-path", help="Repository path")]
+PluginOption = Annotated[
+    Optional[str],
+    typer.Option("--plugin", help="Plugin to use for processing components"),
+]
+TypeFilterOption = Annotated[
+    Optional[str], typer.Option("--type-filter", help="Filter components by type")
+]
+NameFilterOption = Annotated[
+    Optional[str], typer.Option("--name-filter", help="Filter components by name")
+]
+FailFastOption = Annotated[
+    bool, typer.Option("--fail-fast", help="Stop on first error")
+]
 
 console = Console()
 
@@ -38,6 +60,29 @@ class AppState:
 
 
 app_state = AppState()
+
+
+def _merge_global_options(
+    main_verbose: bool = False,
+    main_quiet: bool = False,
+    main_plain: bool = False,
+    cmd_verbose: bool = False,
+    cmd_quiet: bool = False,
+    cmd_plain: bool = False,
+) -> None:
+    """Merge global options from main callback and command, giving precedence to command-level options."""
+    # Command-level options take precedence
+    verbose = cmd_verbose or main_verbose
+    quiet = cmd_quiet or main_quiet
+    plain = cmd_plain or main_plain
+
+    # Update global state
+    app_state.verbose = verbose
+    app_state.quiet = quiet
+    app_state.plain = plain
+
+    # Reconfigure logging if options changed
+    _setup_logging(verbose, quiet, plain)
 
 
 def version_callback(value: bool):
@@ -106,16 +151,9 @@ def _handle_subprocess_error(e: subprocess.CalledProcessError, operation: str) -
 # Global version option
 @app.callback()
 def main(
-    verbose: Annotated[
-        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
-    ] = False,
-    quiet: Annotated[
-        bool, typer.Option("--quiet", "-q", help="Only show errors")
-    ] = False,
-    plain: Annotated[
-        bool,
-        typer.Option("--plain", help="Use plain logging output (no rich formatting)"),
-    ] = False,
+    verbose: VerboseOption = False,
+    quiet: QuietOption = False,
+    plain: PlainOption = False,
     version: Annotated[
         Optional[bool],
         typer.Option(
@@ -261,27 +299,24 @@ def workflow_run(
     work_dir: Annotated[
         Optional[str], typer.Option("--work-dir", help="Working directory for clones")
     ] = None,
-    fail_fast: Annotated[
-        bool, typer.Option("--fail-fast", help="Stop on first error")
-    ] = False,
-    plugin: Annotated[
-        Optional[str],
-        typer.Option("--plugin", help="Plugin to use for processing components"),
-    ] = None,
-    type_filter: Annotated[
-        Optional[str], typer.Option("--type-filter", help="Filter components by type")
-    ] = None,
-    name_filter: Annotated[
-        Optional[str], typer.Option("--name-filter", help="Filter components by name")
-    ] = None,
+    fail_fast: FailFastOption = False,
+    plugin: PluginOption = None,
+    type_filter: TypeFilterOption = None,
+    name_filter: NameFilterOption = None,
+    # Add global options to this command
+    verbose: VerboseOption = False,
+    quiet: QuietOption = False,
+    plain: PlainOption = False,
 ) -> None:
     """
     Run a complete workflow to process hornet manifests.
 
     Can be run using a metadata file, inline repo parameters, or an existing repo path.
     """
-    # Use global logging options - no need to call _setup_logging again
-    # as it was already called in the main callback
+    # Merge global options (command-level takes precedence)
+    _merge_global_options(
+        app_state.verbose, app_state.quiet, app_state.plain, verbose, quiet, plain
+    )
 
     # Validation: metadata_file cannot be combined with repo_url/commit
     if metadata_file and (repo_url or repo_commit != "main"):
@@ -320,7 +355,7 @@ def workflow_run(
             work_path = Path(work_dir or tempfile.gettempdir())
 
             # Create persistent directory for manual cleanup
-            temp_dir = tempfile.mkdtemp(dir=work_path)
+            temp_dir = tempfile.mkdtemp(prefix="hornet_", dir=work_path)
             temp_path = Path(temp_dir)
             target_repo_path = temp_path / "repo"
             try:
@@ -358,7 +393,7 @@ def workflow_run(
                 raise
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        _logger.exception("Workflow failed: %s [%s]", e, type(e))
+        _logger.exception("❌ Workflow failed: %s [%s]", e, type(e))
         if not isinstance(e, typer.Exit):
             raise typer.Exit(os.EX_SOFTWARE) from e
         raise
@@ -449,8 +484,17 @@ def repo_clone(
     repo_url: Annotated[str, typer.Option("--repo-url", help="Repository URL")],
     dest: Annotated[Optional[str], typer.Option("--dest", help="Destination path")],
     commit: Annotated[str, typer.Option("--commit", help="Commit hash")] = "main",
+    # Add global options
+    verbose: VerboseOption = False,
+    quiet: QuietOption = False,
+    plain: PlainOption = False,
 ) -> None:
     """Clone a repository and checkout a specific commit."""
+
+    # Merge global options
+    _merge_global_options(
+        app_state.verbose, app_state.quiet, app_state.plain, verbose, quiet, plain
+    )
 
     _logger.info("📥 Cloning repository")
     _logger.info("🔗 Repository: %s", repo_url)
@@ -466,25 +510,40 @@ def repo_clone(
             console=console,
             transient=True,
         ) as progress:
-            task = progress.add_task("Cloning repository...", total=None)
+            task = progress.add_task(
+                f"Cloning repository to {dest_path}...", total=None
+            )
             repo_path = service.clone_repository(repo_url, commit, dest_path)
             progress.update(task, description="Repository cloned successfully")
 
         _logger.info("✅ Repository cloned successfully to %s", repo_path)
+
     except subprocess.CalledProcessError as e:
         _handle_subprocess_error(e, "clone repository")
         raise typer.Exit(os.EX_SOFTWARE) from e
+
     except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("❌ Failed to clone repository: %s", e)
-        raise typer.Exit(os.EX_SOFTWARE) from e
+        if not isinstance(e, typer.Exit):
+            raise typer.Exit(os.EX_SOFTWARE) from e
+        raise
 
 
 # Manifest commands
 @manifest_app.command("validate")
 def manifest_validate(
-    repo_path: Annotated[str, typer.Option("--repo-path", help="Repository path")],
+    repo_path: RepoPathOption,
+    # Add global options
+    verbose: VerboseOption = False,
+    quiet: QuietOption = False,
+    plain: PlainOption = False,
 ) -> None:
     """Validate hornet manifests against their schemas."""
+
+    # Merge global options
+    _merge_global_options(
+        app_state.verbose, app_state.quiet, app_state.plain, verbose, quiet, plain
+    )
 
     _logger.info("✅ Validating manifests")
     _logger.info("📁 Repository: %s", repo_path)
@@ -526,9 +585,6 @@ def manifest_validate(
                 )
                 _logger.info("✅ SIM manifest validation successful")
 
-    except jsonschema.ValidationError as e:
-        _logger.error("❌ Schema validation failed: %s", e.message)
-        raise typer.Exit(os.EX_DATAERR) from e
     except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("❌ Validation failed: %s", e)
         raise typer.Exit(os.EX_DATAERR) from e
@@ -536,7 +592,7 @@ def manifest_validate(
 
 @manifest_app.command("show")
 def manifest_show(
-    repo_path: Annotated[str, typer.Option("--repo-path", help="Repository path")],
+    repo_path: RepoPathOption,
     manifest_type: Annotated[
         str,
         typer.Option(
@@ -545,8 +601,17 @@ def manifest_show(
             click_type=Choice(["cad", "sim", "both"], case_sensitive=False),
         ),
     ] = "both",
+    # Add global options
+    verbose: VerboseOption = False,
+    quiet: QuietOption = False,
+    plain: PlainOption = False,
 ) -> None:
     """Display hornet manifest contents."""
+
+    # Merge global options
+    _merge_global_options(
+        app_state.verbose, app_state.quiet, app_state.plain, verbose, quiet, plain
+    )
 
     _logger.info("📋 Showing manifests")
     _logger.info("📁 Repository: %s", repo_path)
@@ -591,29 +656,29 @@ def manifest_show(
             console.print_json(data=sim_contents)
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        _logger.error("❌ Failed to show manifests: %s", e)
+        _logger.exception("❌ Failed to show manifests: %s", e)
         raise typer.Exit(os.EX_DATAERR) from e
 
 
 # CAD commands
 @cad_app.command("load")
 def cad_load(
-    repo_path: Annotated[str, typer.Option("--repo-path", help="Repository path")],
-    plugin: Annotated[
-        Optional[str],
-        typer.Option("--plugin", help="Plugin to use for processing components"),
-    ] = None,
-    type_filter: Annotated[
-        Optional[str], typer.Option("--type-filter", help="Filter components by type")
-    ] = None,
-    name_filter: Annotated[
-        Optional[str], typer.Option("--name-filter", help="Filter components by name")
-    ] = None,
-    fail_fast: Annotated[
-        bool, typer.Option("--fail-fast", help="Stop on first error")
-    ] = True,
+    repo_path: RepoPathOption,
+    plugin: PluginOption = None,
+    type_filter: TypeFilterOption = None,
+    name_filter: NameFilterOption = None,
+    fail_fast: FailFastOption = True,
+    # Add global options
+    verbose: VerboseOption = False,
+    quiet: QuietOption = False,
+    plain: PlainOption = False,
 ) -> None:
     """Load CAD files referenced in the manifest using plugins."""
+
+    # Merge global options
+    _merge_global_options(
+        app_state.verbose, app_state.quiet, app_state.plain, verbose, quiet, plain
+    )
 
     _logger.info("🔧 Loading CAD files")
     _logger.info("📁 Repository: %s", repo_path)
@@ -642,7 +707,7 @@ def cad_load(
         )
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        _logger.error("❌ Failed to load CAD files: %s", e)
+        _logger.exception("❌ Failed to load CAD files: %s", e)
         raise typer.Exit(os.EX_DATAERR) from e
 
 
