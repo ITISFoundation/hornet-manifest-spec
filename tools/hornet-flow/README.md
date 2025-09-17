@@ -34,9 +34,6 @@ hornet-flow workflow run --repo-url https://github.com/example/repo --commit mai
 # Using an already-cloned repository
 hornet-flow workflow run --repo-path /path/to/local/repo --verbose
 
-# With cleanup (removes cloned repo after processing)
-hornet-flow workflow run --repo-url https://github.com/example/repo --cleanup --verbose
-
 # Using a specific plugin
 hornet-flow workflow run --repo-url https://github.com/example/repo --plugin osparc --verbose
 
