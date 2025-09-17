@@ -4,30 +4,34 @@ This module provides a clean programmatic interface to hornet-flow functionality
 without CLI dependencies. Functions raise core domain exceptions only.
 """
 
+import contextlib
 import logging
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, TypeAlias
 
 import jsonschema
 
 from . import service
 from .exceptions import (
-    InputError,
-    InputFileNotFoundError,
-    ProcessingError,
-    ValidationError,
+    ApiFileNotFoundError,
+    ApiInputValueError,
+    ApiProcessingError,
+    ApiValidationError,
 )
 from .processors import ManifestProcessor
 
 _logger = logging.getLogger(__name__)
 
+SuccessCountInt: TypeAlias = int
+TotalCountInt: TypeAlias = int
+
 
 def _create_processing_error(
     e: subprocess.CalledProcessError, operation: str
-) -> ProcessingError:
+) -> ApiProcessingError:
     """Convert subprocess errors to ProcessingError with detailed information."""
     error_details = [f"Failed to {operation}"]
     if e.cmd:
@@ -41,7 +45,7 @@ def _create_processing_error(
         stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr
         error_details.append(f"stderr: {stderr}")
 
-    return ProcessingError(". ".join(error_details))
+    return ApiProcessingError(". ".join(error_details))
 
 
 def validate_manifest_schema_api(manifest_path: Path, manifest_type: str) -> None:
@@ -50,7 +54,7 @@ def validate_manifest_schema_api(manifest_path: Path, manifest_type: str) -> Non
         service.validate_manifest_schema(manifest_path)
     except jsonschema.ValidationError as e:
         msg = f"{manifest_type} manifest schema validation failed: {e.message}"
-        raise ValidationError(msg) from e
+        raise ApiValidationError(msg) from e
 
 
 def process_manifest_with_plugin_api(
@@ -60,7 +64,7 @@ def process_manifest_with_plugin_api(
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
     repo_release: Optional[service.Release] = None,
-) -> Tuple[int, int]:
+) -> Tuple[SuccessCountInt, TotalCountInt]:
     """Process CAD manifest using specified plugin - pure API function."""
     processor = ManifestProcessor(plugin_name, _logger)
     try:
@@ -69,11 +73,11 @@ def process_manifest_with_plugin_api(
         )
         return success_count, total_count
     except FileNotFoundError as e:
-        raise InputFileNotFoundError(f"Processing failed: {e}") from e
+        raise ApiFileNotFoundError(f"Processing failed: {e}") from e
     except RuntimeError as e:
-        raise ProcessingError(f"Processing failed: {e}") from e
+        raise ApiProcessingError(f"Processing failed: {e}") from e
     except ValueError as e:
-        raise ValidationError(f"Plugin error: {e}") from e
+        raise ApiValidationError(f"Plugin error: {e}") from e
 
 
 def process_manifests_api(
@@ -83,14 +87,14 @@ def process_manifests_api(
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
     release: Optional[service.Release] = None,
-) -> Tuple[int, int]:
+) -> Tuple[SuccessCountInt, TotalCountInt]:
     """Process manifests found in repository - pure API function."""
     # 1. Find hornet manifests
     cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
 
     if not cad_manifest and not sim_manifest:
         msg = f"No hornet manifest files found in repository at {repo_path}"
-        raise InputFileNotFoundError(msg)
+        raise ApiFileNotFoundError(msg)
 
     # 2. Validate manifests
     validation_errors = []
@@ -98,7 +102,7 @@ def process_manifests_api(
     if cad_manifest:
         try:
             validate_manifest_schema_api(cad_manifest, "CAD")
-        except ValidationError as e:
+        except ApiValidationError as e:
             if fail_fast:
                 raise
             validation_errors.append(str(e))
@@ -106,7 +110,7 @@ def process_manifests_api(
     if sim_manifest:
         try:
             validate_manifest_schema_api(sim_manifest, "SIM")
-        except ValidationError as e:
+        except ApiValidationError as e:
             if fail_fast:
                 raise
             validation_errors.append(str(e))
@@ -140,15 +144,19 @@ def run_workflow_api(
     plugin: Optional[str] = None,
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
-) -> Tuple[int, int]:
+) -> Tuple[SuccessCountInt, TotalCountInt]:
     """Run a complete workflow to process hornet manifests - pure API function."""
     # Validation: metadata_file cannot be combined with repo_url/commit
     if metadata_file and (repo_url or repo_commit != "main"):
-        raise InputError("metadata_file cannot be combined with repo_url or commit")
+        raise ApiInputValueError(
+            "metadata_file cannot be combined with repo_url or commit"
+        )
 
     # At least one input method must be specified
     if not metadata_file and not repo_url and not repo_path:
-        raise InputError("Must specify either metadata_file, repo_url, or repo_path")
+        raise ApiInputValueError(
+            "Must specify either metadata_file, repo_url, or repo_path"
+        )
 
     release = None
     if metadata_file:
@@ -215,26 +223,20 @@ def validate_manifests_api(repo_path: str) -> Tuple[bool, bool]:
     cad_manifest, sim_manifest = service.find_hornet_manifests(repo_dir)
 
     if not cad_manifest and not sim_manifest:
-        raise InputFileNotFoundError("No hornet manifest files found")
+        raise ApiFileNotFoundError("No hornet manifest files found")
 
     cad_valid = False
     sim_valid = False
 
     if cad_manifest:
-        try:
+        with contextlib.suppress(ApiValidationError):
             validate_manifest_schema_api(cad_manifest, "CAD")
             cad_valid = True
-        except ValidationError:
-            # Re-raise for caller to handle
-            raise
 
     if sim_manifest:
-        try:
+        with contextlib.suppress(ApiValidationError):
             validate_manifest_schema_api(sim_manifest, "SIM")
             sim_valid = True
-        except ValidationError:
-            # Re-raise for caller to handle
-            raise
 
     return cad_valid, sim_valid
 
@@ -249,15 +251,15 @@ def show_manifest_api(repo_path: str, manifest_type: str = "both") -> Dict[str, 
     # Check if requested manifests exist
     if manifest_type.lower() in ["cad", "both"] and not cad_manifest:
         if manifest_type.lower() == "cad":
-            raise InputFileNotFoundError("No CAD manifest found")
+            raise ApiFileNotFoundError("No CAD manifest found")
 
     if manifest_type.lower() in ["sim", "both"] and not sim_manifest:
         if manifest_type.lower() == "sim":
-            raise InputFileNotFoundError("No SIM manifest found")
+            raise ApiFileNotFoundError("No SIM manifest found")
 
     # If both requested but neither found
     if manifest_type.lower() == "both" and not cad_manifest and not sim_manifest:
-        raise InputFileNotFoundError("No hornet manifest files found")
+        raise ApiFileNotFoundError("No hornet manifest files found")
 
     # Get CAD manifest if requested and exists
     if manifest_type.lower() in ["cad", "both"] and cad_manifest:
@@ -282,7 +284,7 @@ def load_cad_api(
     cad_manifest, _ = service.find_hornet_manifests(repo_dir)
 
     if not cad_manifest:
-        raise InputFileNotFoundError("No CAD manifest found")
+        raise ApiFileNotFoundError("No CAD manifest found")
 
     # 1. Validate manifest schema first
     validate_manifest_schema_api(cad_manifest, "CAD")

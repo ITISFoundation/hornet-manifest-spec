@@ -9,17 +9,17 @@ class HornetFlowError(Exception):
     """Base exception for hornet-flow operations."""
 
 
-class ValidationError(HornetFlowError):
+class ApiValidationError(HornetFlowError):
     """Raised when validation fails."""
 
 
-class ProcessingError(HornetFlowError):
+class ApiProcessingError(HornetFlowError):
     """Raised when processing operations fail."""
 
 
-class InputError(HornetFlowError):
+class ApiInputValueError(HornetFlowError):
     """Raised when input parameters are invalid."""
 
 
-class InputFileNotFoundError(HornetFlowError):
+class ApiFileNotFoundError(HornetFlowError):
     """Raised when required files are not found."""

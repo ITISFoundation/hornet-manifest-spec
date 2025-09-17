@@ -11,7 +11,14 @@ from typing import Any, Callable
 
 import typer
 
-from .exceptions import HornetFlowError
+# Map core exceptions to appropriate exit codes
+from .exceptions import (
+    ApiFileNotFoundError,
+    ApiInputValueError,
+    ApiProcessingError,
+    ApiValidationError,
+    HornetFlowError,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -65,21 +72,14 @@ def handle_command_errors(func: Callable[..., Any]) -> Callable[..., Any]:
         except HornetFlowError as e:
             # Convert core exceptions to CLI exceptions with appropriate exit codes
             _logger.exception("❌ Operation failed: %s", e)
-            # Map core exceptions to appropriate exit codes
-            from .exceptions import (
-                InputError,
-                InputFileNotFoundError,
-                ProcessingError,
-                ValidationError,
-            )
 
-            if isinstance(e, ValidationError):
+            if isinstance(e, ApiValidationError):
                 raise typer.Exit(os.EX_DATAERR) from e
-            elif isinstance(e, InputError):
+            elif isinstance(e, ApiInputValueError):
                 raise typer.Exit(os.EX_USAGE) from e
-            elif isinstance(e, InputFileNotFoundError):
+            elif isinstance(e, ApiFileNotFoundError):
                 raise typer.Exit(os.EX_NOINPUT) from e
-            elif isinstance(e, ProcessingError):
+            elif isinstance(e, ApiProcessingError):
                 raise typer.Exit(os.EX_SOFTWARE) from e
             else:
                 raise typer.Exit(os.EX_SOFTWARE) from e
