@@ -254,7 +254,7 @@ def workflow_run(
     repo_url: Annotated[
         Optional[str], typer.Option("--repo-url", help="Repository URL")
     ] = None,
-    commit: Annotated[str, typer.Option("--commit", help="Commit hash")] = "main",
+    repo_commit: Annotated[str, typer.Option("--commit", help="Commit hash")] = "main",
     repo_path: Annotated[
         Optional[str], typer.Option("--repo-path", help="Path to already-cloned repo")
     ] = None,
@@ -263,9 +263,6 @@ def workflow_run(
     ] = None,
     fail_fast: Annotated[
         bool, typer.Option("--fail-fast", help="Stop on first error")
-    ] = False,
-    cleanup: Annotated[
-        bool, typer.Option("--cleanup", help="Clean up cloned repo")
     ] = False,
     plugin: Annotated[
         Optional[str],
@@ -287,7 +284,7 @@ def workflow_run(
     # as it was already called in the main callback
 
     # Validation: metadata_file cannot be combined with repo_url/commit
-    if metadata_file and (repo_url or commit != "main"):
+    if metadata_file and (repo_url or repo_commit != "main"):
         _logger.error("--metadata-file cannot be combined with --repo-url or --commit")
         raise typer.Exit(os.EX_USAGE)
 
@@ -305,92 +302,64 @@ def workflow_run(
             # Extract release info
             release = service.load_metadata_release(metadata_file)
             repo_url = release.url
-            commit = release.marker
+            repo_commit = release.marker
 
         if repo_path:
             _logger.info("📁 Using existing repo: %s", repo_path)
             target_repo_path = Path(repo_path)
+
             _process_manifests(
                 target_repo_path, fail_fast, plugin, type_filter, name_filter
             )
         else:
             assert repo_url  # nosec
             _logger.info("🔗 Repository URL: %s", repo_url)
-            _logger.info("📌 Commit: %s", commit)
+            _logger.info("📌 Commit: %s", repo_commit)
 
             # Clone repository
             work_path = Path(work_dir or tempfile.gettempdir())
-            if cleanup:
-                # Use temporary directory for automatic cleanup
-                with tempfile.TemporaryDirectory(dir=work_path) as temp_dir:
-                    temp_path = Path(temp_dir)
-                    target_repo_path = temp_path / "repo"
 
-                    with Progress(
-                        SpinnerColumn(),
-                        TextColumn("[progress.description]{task.description}"),
-                        console=console,
-                        transient=True,
-                    ) as progress:
-                        task = progress.add_task("Cloning repository...", total=None)
-                        try:
-                            service.clone_repository(repo_url, commit, target_repo_path)
-                        except subprocess.CalledProcessError as e:
-                            _handle_subprocess_error(e, "clone repository")
-                            raise typer.Exit(1)
-                        progress.update(
-                            task, description="Repository cloned successfully"
-                        )
-
-                    _logger.info("Successfully cloned repository")
-
-                    # Process manifests within the temporary directory context
-                    _process_manifests(
-                        target_repo_path, fail_fast, plugin, type_filter, name_filter
+            # Create persistent directory for manual cleanup
+            temp_dir = tempfile.mkdtemp(dir=work_path)
+            temp_path = Path(temp_dir)
+            target_repo_path = temp_path / "repo"
+            try:
+                # Clone repo
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                    transient=True,
+                ) as progress:
+                    task = progress.add_task(
+                        f"Cloning repository to {target_repo_path}...", total=None
                     )
-                    # Automatic cleanup happens when exiting the context
-                    _logger.info("🧹 Automatically cleaning up temporary repository")
-            else:
-                # Create persistent directory for manual cleanup
-                temp_dir = tempfile.mkdtemp(dir=work_path)
-                temp_path = Path(temp_dir)
-                target_repo_path = temp_path / "repo"
-
-                try:
-                    with Progress(
-                        SpinnerColumn(),
-                        TextColumn("[progress.description]{task.description}"),
-                        console=console,
-                        transient=True,
-                    ) as progress:
-                        task = progress.add_task("Cloning repository...", total=None)
-                        try:
-                            service.clone_repository(repo_url, commit, target_repo_path)
-                        except subprocess.CalledProcessError as e:
-                            _handle_subprocess_error(e, "clone repository")
-                            raise typer.Exit(1)
-                        progress.update(
-                            task, description="Repository cloned successfully"
+                    try:
+                        service.clone_repository(
+                            repo_url, repo_commit, target_repo_path
                         )
+                    except subprocess.CalledProcessError as e:
+                        _handle_subprocess_error(e, "clone repository")
+                        raise typer.Exit(1)
+                    progress.update(task, description="Repository cloned successfully")
 
-                    _logger.info("Successfully cloned repository")
+                # Process manifests
+                _process_manifests(
+                    target_repo_path, fail_fast, plugin, type_filter, name_filter
+                )
 
-                    # Process manifests
-                    _process_manifests(
-                        target_repo_path, fail_fast, plugin, type_filter, name_filter
-                    )
+                _logger.info("Repository kept at: %s", target_repo_path)
 
-                    _logger.info("Repository kept at: %s", target_repo_path)
-                except Exception:
-                    # Clean up on error even if cleanup=False
-                    if temp_path.exists():
-                        shutil.rmtree(temp_path)
-                        _logger.info("🧹 Cleaned up repository after error")
-                    raise
+            except Exception:
+                # Clean up on error
+                if temp_path.exists():
+                    shutil.rmtree(temp_path)
+                    _logger.info("🧹 Cleaned up repository after error")
+                raise
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.exception("Workflow failed: %s [%s]", e, type(e))
-        if fail_fast:
+        if not isinstance(e, typer.Exit):
             raise typer.Exit(1)
 
 
