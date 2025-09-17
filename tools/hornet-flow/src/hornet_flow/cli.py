@@ -124,6 +124,20 @@ def _create_processing_error(
     return ProcessingError(". ".join(error_details))
 
 
+def _validate_manifest_schema(
+    manifest_path: Path, manifest_type: str, fail_fast: bool = True
+) -> None:
+    """Validate a manifest schema with consistent error handling."""
+    try:
+        service.validate_manifest_schema(manifest_path)
+        _logger.info("%s manifest schema validation successful", manifest_type)
+    except jsonschema.ValidationError as e:
+        msg = f"{manifest_type} manifest schema validation failed: {e.message}"
+        if fail_fast:
+            raise DataValidationError(msg) from e
+        _logger.error(msg)
+
+
 console = Console()
 
 
@@ -518,27 +532,10 @@ def _process_manifests(
     # 2. Validate manifests
     _logger.info("✅ Validating manifest schemas...")
     if cad_manifest:
-        try:
-            service.validate_manifest_schema(cad_manifest)
-            _logger.info("CAD manifest schema validation successful")
-
-        except jsonschema.ValidationError as e:
-            msg = f"CAD manifest schema validation failed: {e.message}"
-            if fail_fast:
-                raise DataValidationError(msg) from e
-            _logger.error(msg)
+        _validate_manifest_schema(cad_manifest, "CAD", fail_fast)
 
     if sim_manifest:
-        try:
-            service.validate_manifest_schema(sim_manifest)
-            _logger.info("SIM manifest schema validation successful")
-
-        except jsonschema.ValidationError as e:
-            _logger.error("SIM manifest schema validation failed: %s", e.message)
-            if fail_fast:
-                raise DataValidationError(
-                    f"SIM manifest schema validation failed: {e.message}"
-                ) from e
+        _validate_manifest_schema(sim_manifest, "SIM", fail_fast)
 
     # 3. Process CAD manifest with plugin
     if cad_manifest:
@@ -633,12 +630,7 @@ def manifest_validate(
 
         if cad_manifest:
             validate_task = progress.add_task("Validating CAD manifest...", total=None)
-            try:
-                service.validate_manifest_schema(cad_manifest)
-            except jsonschema.ValidationError as e:
-                raise DataValidationError(
-                    f"CAD manifest validation failed: {e.message}"
-                ) from e
+            _validate_manifest_schema(cad_manifest, "CAD", fail_fast=True)
             progress.update(
                 validate_task, description="CAD manifest validation successful"
             )
@@ -646,12 +638,7 @@ def manifest_validate(
 
         if sim_manifest:
             validate_task = progress.add_task("Validating SIM manifest...", total=None)
-            try:
-                service.validate_manifest_schema(sim_manifest)
-            except jsonschema.ValidationError as e:
-                raise DataValidationError(
-                    f"SIM manifest validation failed: {e.message}"
-                ) from e
+            _validate_manifest_schema(sim_manifest, "SIM", fail_fast=True)
             progress.update(
                 validate_task, description="SIM manifest validation successful"
             )
@@ -753,14 +740,7 @@ def cad_load(
 
     # 1. Validate manifest schema first
     _logger.info("✅ Validating manifest schema...")
-    try:
-        service.validate_manifest_schema(cad_manifest)
-        _logger.info("CAD manifest schema validation successful")
-    except jsonschema.ValidationError as e:
-        msg = f"CAD manifest schema validation failed: {e.message}"
-        if fail_fast:
-            raise DataValidationError(msg) from e
-        _logger.error(msg)
+    _validate_manifest_schema(cad_manifest, "CAD", fail_fast)
 
     # 2. Process with plugin
     _process_manifest_with_plugin(
