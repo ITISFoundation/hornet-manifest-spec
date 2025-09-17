@@ -340,7 +340,7 @@ def workflow_run(
                         )
                     except subprocess.CalledProcessError as e:
                         _handle_subprocess_error(e, "clone repository")
-                        raise typer.Exit(1)
+                        raise typer.Exit(os.EX_SOFTWARE) from e
                     progress.update(task, description="Repository cloned successfully")
 
                 # Process manifests
@@ -360,7 +360,8 @@ def workflow_run(
     except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.exception("Workflow failed: %s [%s]", e, type(e))
         if not isinstance(e, typer.Exit):
-            raise typer.Exit(1)
+            raise typer.Exit(os.EX_SOFTWARE) from e
+        raise
 
 
 def _process_manifest_with_plugin(
@@ -381,12 +382,15 @@ def _process_manifest_with_plugin(
         _logger.info(
             "✅ Processed %d/%d components successfully", success_count, total_count
         )
-    except (FileNotFoundError, RuntimeError) as e:
+    except FileNotFoundError as e:
         _logger.exception("Processing failed: %s", e)
-        raise typer.Exit(1)
+        raise typer.Exit(os.EX_NOINPUT) from e
+    except RuntimeError as e:
+        _logger.exception("Processing failed: %s", e)
+        raise typer.Exit(os.EX_SOFTWARE) from e
     except ValueError as e:
         _logger.exception("Plugin error: %s", e)
-        raise typer.Exit(1)
+        raise typer.Exit(os.EX_DATAERR) from e
 
 
 def _process_manifests(
@@ -421,7 +425,7 @@ def _process_manifests(
         except jsonschema.ValidationError as e:
             _logger.error("CAD manifest schema validation failed: %s", e.message)
             if fail_fast:
-                raise typer.Exit(os.EX_DATAERR)
+                raise typer.Exit(os.EX_DATAERR) from e
 
     if sim_manifest:
         try:
@@ -430,7 +434,7 @@ def _process_manifests(
         except jsonschema.ValidationError as e:
             _logger.error("SIM manifest schema validation failed: %s", e.message)
             if fail_fast:
-                raise typer.Exit(os.EX_DATAERR)
+                raise typer.Exit(os.EX_DATAERR) from e
 
     # 3. Process CAD manifest with plugin
     if cad_manifest:
@@ -469,10 +473,10 @@ def repo_clone(
         _logger.info("✅ Repository cloned successfully to %s", repo_path)
     except subprocess.CalledProcessError as e:
         _handle_subprocess_error(e, "clone repository")
-        raise typer.Exit(1)
+        raise typer.Exit(os.EX_SOFTWARE) from e
     except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("❌ Failed to clone repository: %s", e)
-        raise typer.Exit(1)
+        raise typer.Exit(os.EX_SOFTWARE) from e
 
 
 # Manifest commands
@@ -524,10 +528,10 @@ def manifest_validate(
 
     except jsonschema.ValidationError as e:
         _logger.error("❌ Schema validation failed: %s", e.message)
-        raise typer.Exit(os.EX_DATAERR)
+        raise typer.Exit(os.EX_DATAERR) from e
     except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("❌ Validation failed: %s", e)
-        raise typer.Exit(os.EX_DATAERR)
+        raise typer.Exit(os.EX_DATAERR) from e
 
 
 @manifest_app.command("show")
@@ -588,7 +592,7 @@ def manifest_show(
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("❌ Failed to show manifests: %s", e)
-        raise typer.Exit(os.EX_DATAERR)
+        raise typer.Exit(os.EX_DATAERR) from e
 
 
 # CAD commands
@@ -630,7 +634,7 @@ def cad_load(
         except jsonschema.ValidationError as e:
             _logger.error("CAD manifest schema validation failed: %s", e.message)
             if fail_fast:
-                raise typer.Exit(os.EX_DATAERR)
+                raise typer.Exit(os.EX_DATAERR) from e
 
         # 2. Process with plugin
         _process_manifest_with_plugin(
@@ -639,7 +643,7 @@ def cad_load(
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         _logger.error("❌ Failed to load CAD files: %s", e)
-        raise typer.Exit(os.EX_DATAERR)
+        raise typer.Exit(os.EX_DATAERR) from e
 
 
 if __name__ == "__main__":
