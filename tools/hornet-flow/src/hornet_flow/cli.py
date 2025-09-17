@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -22,17 +23,18 @@ from hornet_flow import service
 from hornet_flow.plugins import discover_plugins, get_default_plugin
 from hornet_flow.processors import ManifestProcessor
 
-console = Console()
-
 __version__ = "0.1.0"
 
 
+console = Console()
+
+
 # Global state for CLI options
+@dataclass
 class AppState:
-    def __init__(self):
-        self.verbose = False
-        self.quiet = False
-        self.plain = False
+    verbose: bool = False
+    quiet: bool = False
+    plain: bool = False
 
 
 app_state = AppState()
@@ -299,16 +301,11 @@ def workflow_run(
     try:
         if metadata_file:
             _logger.info("📄 Loading metadata from: %s", metadata_file)
-            metadata = service.load_metadata(metadata_file)
 
             # Extract release info
-            release = metadata.get("release", {})
-            repo_url = release.get("url", "")
-            commit = release.get("marker", "")
-
-            if not repo_url or not commit:
-                _logger.error("Missing repository URL or commit hash in metadata")
-                raise typer.Exit(os.EX_USAGE)
+            release = service.load_metadata_release(metadata_file)
+            repo_url = release.url
+            commit = release.marker
 
         if repo_path:
             _logger.info("📁 Using existing repo: %s", repo_path)
@@ -485,10 +482,11 @@ def repo_clone(
     _logger.info("📥 Cloning repository")
     _logger.info("🔗 Repository: %s", repo_url)
     _logger.info("📌 Commit: %s", commit)
-    _logger.info("📁 Destination: %s", dest)
+
+    dest_path = Path(dest or tempfile.gettempdir()).resolve()
+    _logger.info("📁 Destination: %s", dest_path)
 
     try:
-        dest_path = Path(dest or tempfile.gettempdir())
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),

@@ -52,6 +52,14 @@ _metadata_model_schema = {
 }
 
 
-def validate_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+@dataclass
+class Release:
+    origin: str
+    url: str
+    label: str
+    marker: str
+
+
+def validate_metadata_and_get_release(metadata: dict[str, Any]) -> Release:
     jsonschema.validate(instance=metadata, schema=_metadata_model_schema)
-    return metadata
+    return Release(**metadata["release"])

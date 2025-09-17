@@ -42,3 +42,10 @@ select = ["I"]  # enable isort rules
 isort.known-first-party = ["hornet_flow"]  # adjust to your own package
 isort.known-third-party = ["pydantic"]
 isort.combine-as-imports = true
+
+
+[tool.pytest.ini_options]
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "integration: tests against repose with external manifests",
+]

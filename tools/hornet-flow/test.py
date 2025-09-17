@@ -39,17 +39,17 @@ def test_load_metadata_portal_device():
     metadata_path = Path(__file__).parent / "examples" / "portal-device-metadata.json"
 
     # Load the metadata
-    metadata = service.load_metadata(metadata_path)
+    release = service.load_metadata_release(metadata_path)
 
-    # Verify release information
-    assert "release" in metadata
-    release = metadata["release"]
-    assert release == {
-        "origin": "GitHub",
-        "url": "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
-        "label": "main",
-        "marker": "c04576f1a83803dec3192d8c03c731638e377fcb",
-    }
+    # Verify release information]
+    assert release == model.Release(
+        **{
+            "origin": "GitHub",
+            "url": "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+            "label": "main",
+            "marker": "c04576f1a83803dec3192d8c03c731638e377fcb",
+        }
+    )
 
 
 @pytest.mark.parametrize(
@@ -141,6 +141,8 @@ def _validate_manifest_files(
     return existing_files, missing_files
 
 
+@pytest.mark.slow
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "repo_id,metadata",
     [
