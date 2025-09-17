@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from hornet_flow import model, service
+from hornet_flow import logging_utils, model, service
 
 _CURRENT_DIR = Path(
     sys.argv[0] if __name__ == "__main__" else __file__
@@ -223,3 +223,46 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
 
     # Step 4: Validate SIM manifest if it exists
     service.validate_manifest_schema(sim_manifest)
+
+
+def test_lifespan_in_contextmanager(caplog: pytest.LogCaptureFixture):
+    """Test that log_lifespan logs start and end of context, including when exceptions are raised."""
+    import contextlib
+    import logging
+
+    # Create a real logger for testing
+    logger = logging.getLogger("test_logger")
+
+    @contextlib.contextmanager
+    def some_lifespan_ctx():
+        with logging_utils.log_lifespan(logger, "Action"):
+            try:
+                yield
+            finally:
+                pass
+
+    # Test normal execution (no exception)
+    with caplog.at_level(logging.INFO):
+        with some_lifespan_ctx():
+            pass
+
+    # Verify start and end logs were captured
+    assert len(caplog.records) == 2
+    assert "Action ..." in caplog.records[0].message
+    assert "Action [done]" in caplog.records[1].message
+
+    # Clear captured logs for exception test
+    caplog.clear()
+
+    # Test with exception
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(ValueError):
+            with some_lifespan_ctx():
+                raise ValueError("test exception")
+
+    # Verify start, exception, and end logs were captured
+    assert len(caplog.records) == 3
+    assert "Action ..." in caplog.records[0].message
+    assert "Action [raised]" in caplog.records[1].message
+    assert "test exception" in caplog.records[1].message
+    assert "Action [done]" in caplog.records[2].message

@@ -18,9 +18,6 @@ from .base import HornetFlowPlugin
 def _app_lifespan(logger: logging.Logger) -> Iterator[XCore.Application]:
     """Context manager for the lifespan of the OSparc app."""
     with log_lifespan(logger, "OSparc app lifespan", level=logging.DEBUG):
-        if XCore.GetApp() is not None:
-            return
-
         old_log_level = XCore.GetLogLevel()
         XCore.SetLogLevel(XCore.eLogCategory.Warning)
 
@@ -174,7 +171,6 @@ class OSparcPlugin(HornetFlowPlugin):
                     imported_entities = XCoreModeling.Import(str(component_path))
 
                 except Exception:  # pylint: disable=broad-exception-caught
-                    # FIXME: should be exceptionr elated with Import, not path existence etc
                     self._logger.warning(
                         "Cannot import %s, let's check next ...", component_path
                     )
