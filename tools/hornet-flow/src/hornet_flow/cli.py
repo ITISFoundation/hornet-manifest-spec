@@ -168,13 +168,14 @@ def main(
     app_state.quiet = quiet
     app_state.plain = plain
 
-    # Setup logging with global options
-    _setup_logging(verbose, quiet, plain)
-
 
 @app.command("info")
-def show_info() -> None:
+def show_info(
+    verbose: VerboseOption = False,
+) -> None:
     """Show current configuration and system information."""
+
+    _merge_global_options(app_state.verbose, False, False, verbose, False, False)
 
     console.print()
     console.print(Panel.fit("🔧 Hornet Flow Configuration", style="bold blue"))
@@ -235,7 +236,7 @@ def show_info() -> None:
         console.print(f"  [red]Error loading plugins: {e}[/red]")
 
     # Configuration details (verbose mode) - use global verbose option
-    if app_state.verbose:
+    if verbose:
         console.print()
         console.print("⚙️  Configuration Details")
 
