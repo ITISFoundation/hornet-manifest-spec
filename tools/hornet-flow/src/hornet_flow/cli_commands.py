@@ -106,30 +106,15 @@ def workflow_run_cmd(
     if repo_url and not repo_path:
         app_logger.info("📁 Working directory: %s", work_path)
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=app_console,
-            transient=True,
-        ) as progress:
-            task = progress.add_task("Processing workflow...", total=None)
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=app_console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Processing workflow...", total=None)
 
-            # Call pure API function
-            success_count, total_count = run_workflow_api(
-                metadata_file=metadata_file,
-                repo_url=repo_url,
-                repo_commit=repo_commit,
-                repo_path=repo_path,
-                work_dir=work_dir,
-                fail_fast=fail_fast,
-                plugin=plugin,
-                type_filter=type_filter,
-                name_filter=name_filter,
-            )
-
-            progress.update(task, description="Workflow completed successfully")
-    else:
-        # Call pure API function directly
+        # Call pure API function
         success_count, total_count = run_workflow_api(
             metadata_file=metadata_file,
             repo_url=repo_url,
@@ -141,6 +126,8 @@ def workflow_run_cmd(
             type_filter=type_filter,
             name_filter=name_filter,
         )
+
+        progress.update(task, description="Workflow completed successfully")
 
     app_logger.info(
         "✅ Processed %d/%d components successfully", success_count, total_count
