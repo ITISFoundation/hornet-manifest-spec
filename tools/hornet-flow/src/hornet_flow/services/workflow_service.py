@@ -65,9 +65,11 @@ def run_workflow(
         repo_commit = release.marker
 
     if repo_path:
+        # Repo in place
         return _process_manifests(
             repo_path, fail_fast, plugin, type_filter, name_filter, release
         )
+
     else:
         assert repo_url  # Already validated above
 

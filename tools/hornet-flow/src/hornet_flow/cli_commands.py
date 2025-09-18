@@ -98,9 +98,12 @@ def workflow_run_cmd(
     if repo_path:
         app_logger.info("📁 Using existing repo: %s", repo_path)
 
+    work_path = Path(work_dir or tempfile.gettempdir())
+    if work_dir and not work_path.exists():
+        raise typer.BadParameter(f"Working directory does not exist: {work_path}")
+
     # Progress bar for cloning (CLI-specific)
     if repo_url and not repo_path:
-        work_path = Path(work_dir or tempfile.gettempdir())
         app_logger.info("📁 Working directory: %s", work_path)
 
         with Progress(
