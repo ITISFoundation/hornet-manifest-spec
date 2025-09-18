@@ -58,7 +58,7 @@ install-all: venv
 	@echo "Installing all dependency groups..."
 	uv sync --all-groups
 
-# Example runs
+# Example runs for manual testing
 run-example:
 	@echo "Running workflow with example metadata..."
 	hornet-flow workflow run --metadata-file examples/portal-device-metadata.json --work-dir /tmp/hornet-flow --verbose
@@ -74,7 +74,7 @@ run-validate-example:
 
 run-show-example:
 	@echo "Running manifest show example..."
-	hornet-flow manifest show --repo-path /tmp/hornet-electrodes --type cad --verbose
+	hornet-flow manifest show --repo-path /tmp/hornet-electrodes --type cad --verbose --quiet
 
 
 # Utility targets
