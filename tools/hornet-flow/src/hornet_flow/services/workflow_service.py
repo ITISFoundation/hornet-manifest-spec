@@ -123,7 +123,7 @@ def _process_manifests(
     if cad_manifest:
         try:
             manifest_service.validate_manifest_schema(cad_manifest)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             if fail_fast:
                 raise
             validation_errors.append(f"CAD manifest validation failed: {e}")
@@ -131,7 +131,7 @@ def _process_manifests(
     if sim_manifest:
         try:
             manifest_service.validate_manifest_schema(sim_manifest)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             if fail_fast:
                 raise
             validation_errors.append(f"SIM manifest validation failed: {e}")

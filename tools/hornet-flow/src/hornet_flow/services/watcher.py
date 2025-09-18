@@ -4,14 +4,16 @@ This module provides functionality to watch for metadata.json files and trigger
 hornet-flow workflow processing when files are detected and stable.
 """
 
+import logging
 import time
 from pathlib import Path
 from typing import Optional
 
 from watchfiles import watch
 
-from ..cli_state import app_logger
 from . import workflow_service
+
+_logger = logging.getLogger(__name__)
 
 
 def _check_file_stability(file_path: Path, stability_seconds: float = 2.0) -> bool:
@@ -37,7 +39,7 @@ def _check_file_stability(file_path: Path, stability_seconds: float = 2.0) -> bo
         final_size = file_path.stat().st_size
         return initial_size == final_size and initial_size > 0
     except (OSError, IOError) as e:
-        app_logger.error("Error checking file stability for %s: %s", file_path, e)
+        _logger.error("Error checking file stability for %s: %s", file_path, e)
         return False
 
 
@@ -65,7 +67,7 @@ def _process_metadata_file(
     Raises:
         Exception: If workflow processing fails
     """
-    app_logger.info("🚀 Processing metadata file: %s", metadata_path)
+    _logger.info("🚀 Processing metadata file: %s", metadata_path)
 
     # Ensure work directory exists
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -120,9 +122,9 @@ def watch_for_metadata(
     except (OSError, PermissionError) as e:
         raise PermissionError(f"Cannot create work directory {work_dir}: {e}") from e
 
-    app_logger.info("👀 Watching for metadata.json in: %s", inputs_dir)
-    app_logger.info("📁 Work directory: %s", work_dir)
-    app_logger.info("🔄 Mode: %s", "single file" if once else "continuous")
+    _logger.info("👀 Watching for metadata.json in: %s", inputs_dir)
+    _logger.info("📁 Work directory: %s", work_dir)
+    _logger.info("🔄 Mode: %s", "single file" if once else "continuous")
 
     metadata_filename = "metadata.json"
 
@@ -139,17 +141,17 @@ def watch_for_metadata(
                 if change_type not in (1, 2):  # Created or Modified
                     continue
 
-                app_logger.info("📄 Detected %s: %s", metadata_filename, file_path)
+                _logger.info("📄 Detected %s: %s", metadata_filename, file_path)
 
                 # Check file stability
-                app_logger.info("⏳ Checking file stability...")
+                _logger.info("⏳ Checking file stability...")
                 if not _check_file_stability(file_path, stability_seconds):
-                    app_logger.warning(
+                    _logger.warning(
                         "❌ File not stable or empty, skipping: %s", file_path
                     )
                     continue
 
-                app_logger.info("✅ File is stable, processing...")
+                _logger.info("✅ File is stable, processing...")
 
                 try:
                     success_count, total_count = _process_metadata_file(
@@ -161,25 +163,25 @@ def watch_for_metadata(
                         fail_fast=fail_fast,
                     )
 
-                    app_logger.info(
+                    _logger.info(
                         "✅ Successfully processed %d/%d components",
                         success_count,
                         total_count,
                     )
 
-                except Exception as e:
-                    app_logger.error("❌ Failed to process metadata file: %s", e)
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    _logger.error("❌ Failed to process metadata file: %s", e)
                     if fail_fast:
                         raise
 
                 if once:
-                    app_logger.info("🏁 Single file mode - exiting after processing")
+                    _logger.info("🏁 Single file mode - exiting after processing")
                     return
                 else:
-                    app_logger.info("👀 Continuing to watch for more files...")
+                    _logger.info("👀 Continuing to watch for more files...")
 
     except KeyboardInterrupt:
-        app_logger.info("⛔ Stopping watcher (Ctrl+C received)")
-    except Exception as e:
-        app_logger.error("❌ Watcher error: %s", e)
+        _logger.info("⛔ Stopping watcher (Ctrl+C received)")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        _logger.error("❌ Watcher error: %s", e)
         raise
