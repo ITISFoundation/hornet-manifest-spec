@@ -20,9 +20,8 @@ from .exceptions import (
     ApiValidationError,
 )
 from .model import Release
-from .services import git_service, manifest_service
+from .services import git_service, manifest_service, workflow_service
 from .services.processor import ManifestProcessor
-from .services.workflow_service import run_workflow
 
 _logger = logging.getLogger(__name__)
 
@@ -148,7 +147,7 @@ def run_workflow_api(
 ) -> Tuple[SuccessCountInt, TotalCountInt]:
     """Run a complete workflow to process hornet manifests - pure API function."""
     try:
-        return run_workflow(
+        return workflow_service.run_workflow(
             metadata_file_path=Path(metadata_file) if metadata_file else None,
             repo_url=repo_url,
             repo_commit=repo_commit,
@@ -246,7 +245,7 @@ def load_cad_api(
 ) -> Tuple[int, int]:
     """Load CAD files referenced in the manifest using plugins - pure API function."""
     try:
-        return run_workflow(
+        return workflow_service.run_workflow(
             repo_path=Path(repo_path),
             plugin=plugin,
             type_filter=type_filter,
