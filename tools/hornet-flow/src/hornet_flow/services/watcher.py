@@ -10,8 +10,8 @@ from typing import Optional
 
 from watchfiles import watch
 
-from ..api import run_workflow_api
 from ..cli_state import app_logger
+from .workflow_service import run_workflow
 
 
 def _check_file_stability(file_path: Path, stability_seconds: float = 2.0) -> bool:
@@ -49,7 +49,7 @@ def _process_metadata_file(
     name_filter: Optional[str] = None,
     fail_fast: bool = False,
 ) -> tuple[int, int]:
-    """Process a metadata file using the workflow API.
+    """Process a metadata file using the workflow service.
 
     Args:
         metadata_path: Path to the metadata.json file
@@ -70,10 +70,10 @@ def _process_metadata_file(
     # Ensure work directory exists
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    # Call the workflow API
-    return run_workflow_api(
-        metadata_file=str(metadata_path),
-        work_dir=str(work_dir),
+    # Call the workflow service
+    return run_workflow(
+        metadata_file_path=metadata_path,
+        work_dir=work_dir,
         plugin=plugin,
         type_filter=type_filter,
         name_filter=name_filter,

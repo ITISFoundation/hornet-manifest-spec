@@ -6,7 +6,6 @@ without CLI dependencies. Functions raise core domain exceptions only.
 
 import contextlib
 import logging
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -22,6 +21,7 @@ from .exceptions import (
     ApiValidationError,
 )
 from .services.processor import ManifestProcessor
+from .services.workflow_service import run_workflow
 
 _logger = logging.getLogger(__name__)
 
@@ -146,62 +146,26 @@ def run_workflow_api(
     name_filter: Optional[str] = None,
 ) -> Tuple[SuccessCountInt, TotalCountInt]:
     """Run a complete workflow to process hornet manifests - pure API function."""
-    # Validation: metadata_file cannot be combined with repo_url/commit
-    if metadata_file and (repo_url or repo_commit != "main"):
-        raise ApiInputValueError(
-            "metadata_file cannot be combined with repo_url or commit"
+    try:
+        return run_workflow(
+            metadata_file_path=Path(metadata_file) if metadata_file else None,
+            repo_url=repo_url,
+            repo_commit=repo_commit,
+            repo_path=Path(repo_path) if repo_path else None,
+            work_dir=Path(work_dir) if work_dir else None,
+            fail_fast=fail_fast,
+            plugin=plugin,
+            type_filter=type_filter,
+            name_filter=name_filter,
         )
-
-    # At least one input method must be specified
-    if not metadata_file and not repo_url and not repo_path:
-        raise ApiInputValueError(
-            "Must specify either metadata_file, repo_url, or repo_path"
-        )
-
-    release = None
-    if metadata_file:
-        # Extract release info
-        release = service.load_metadata_release(metadata_file)
-        repo_url = release.url
-        repo_commit = release.marker
-
-    if repo_path:
-        target_repo_path = Path(repo_path)
-        return process_manifests_api(
-            target_repo_path, fail_fast, plugin, type_filter, name_filter, release
-        )
-    else:
-        assert repo_url  # nosec
-
-        # Clone repository
-        work_path = Path(work_dir or tempfile.gettempdir())
-
-        # Create persistent directory for manual cleanup
-        temp_dir = tempfile.mkdtemp(prefix="hornet_", dir=work_path)
-        temp_path = Path(temp_dir)
-        target_repo_path = temp_path / "repo"
-        try:
-            # Clone repo
-            try:
-                service.clone_repository(repo_url, repo_commit, target_repo_path)
-            except subprocess.CalledProcessError as e:
-                raise _create_processing_error(e, "clone repository") from e
-
-            # Process manifests
-            return process_manifests_api(
-                target_repo_path,
-                fail_fast,
-                plugin,
-                type_filter,
-                name_filter,
-                release,
-            )
-
-        except Exception:
-            # Clean up on error
-            if temp_path.exists():
-                shutil.rmtree(temp_path)
-            raise
+    except ValueError as e:
+        raise ApiInputValueError(str(e)) from e
+    except FileNotFoundError as e:
+        raise ApiFileNotFoundError(str(e)) from e
+    except RuntimeError as e:
+        raise ApiProcessingError(str(e)) from e
+    except subprocess.CalledProcessError as e:
+        raise _create_processing_error(e, "workflow operation") from e
 
 
 def clone_repository_api(
@@ -280,16 +244,17 @@ def load_cad_api(
     fail_fast: bool = True,
 ) -> Tuple[int, int]:
     """Load CAD files referenced in the manifest using plugins - pure API function."""
-    repo_dir = Path(repo_path)
-    cad_manifest, _ = service.find_hornet_manifests(repo_dir)
-
-    if not cad_manifest:
-        raise ApiFileNotFoundError("No CAD manifest found")
-
-    # 1. Validate manifest schema first
-    validate_manifest_schema_api(cad_manifest, "CAD")
-
-    # 2. Process with plugin
-    return process_manifest_with_plugin_api(
-        cad_manifest, repo_dir, plugin, type_filter, name_filter
-    )
+    try:
+        return run_workflow(
+            repo_path=Path(repo_path),
+            plugin=plugin,
+            type_filter=type_filter,
+            name_filter=name_filter,
+            fail_fast=fail_fast,
+        )
+    except ValueError as e:
+        raise ApiInputValueError(str(e)) from e
+    except FileNotFoundError as e:
+        raise ApiFileNotFoundError(str(e)) from e
+    except RuntimeError as e:
+        raise ApiProcessingError(str(e)) from e
