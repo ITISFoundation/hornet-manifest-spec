@@ -75,9 +75,11 @@ def run_workflow(
         work_path = work_dir or Path(tempfile.gettempdir())
 
         # Create persistent directory for manual cleanup
-        temp_dir = tempfile.mkdtemp(prefix="hornet_", dir=work_path)
+        temp_dir = tempfile.mkdtemp(prefix="hornet_", suffix="_repo", dir=work_path)
         temp_path = Path(temp_dir)
-        target_repo_path = temp_path / "repo"
+        # Deduce repository name from repo_url
+        repo_name = Path(repo_url.rstrip("/").split("/")[-1]).stem
+        target_repo_path = temp_path / repo_name
 
         try:
             # Clone repo

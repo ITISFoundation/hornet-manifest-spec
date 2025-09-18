@@ -39,11 +39,11 @@ def check_git_version() -> Optional[str]:
 
 def clone_repository(repo_url: str, commit_hash: str, target_dir: Path | str) -> Path:
     """Clone repository and checkout specific commit."""
-    target_path = Path(target_dir)
-    target_path.mkdir(parents=True, exist_ok=True)
-
     if not repo_url.startswith("http://") and not repo_url.startswith("https://"):
         raise ValueError(f"Repository URL must be HTTP(S): {repo_url}")
+
+    target_path = Path(target_dir)
+    target_path.mkdir(parents=True, exist_ok=True)
 
     # Clone with depth 1 first
     subprocess.run(
