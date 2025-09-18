@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from hornet_flow import logging_utils, model
+from hornet_flow.services import git_service, manifest_service, metadata_service
 
 _CURRENT_DIR = Path(
     sys.argv[0] if __name__ == "__main__" else __file__
@@ -59,7 +60,7 @@ def test_clone_repository(tmp_path: Path, commit_hash: str):
     repo_url = "https://github.com/ITISFoundation/hornet-manifest-spec"
 
     # Clone the repository
-    repo_path = service.clone_repository(repo_url, commit_hash, tmp_path / "repo")
+    repo_path = git_service.clone_repository(repo_url, commit_hash, tmp_path / "repo")
 
     # Verify the repository was cloned successfully
     assert repo_path.exists()
@@ -72,7 +73,7 @@ def test_clone_repository(tmp_path: Path, commit_hash: str):
         assert folder_path.exists(), f"Expected folder '{folder_name}' not found"
         assert folder_path.is_dir(), f"'{folder_name}' exists but is not a directory"
 
-    repo_release = service.extract_git_repo_info(repo_path)
+    repo_release = git_service.extract_git_repo_info(repo_path)
     assert repo_release.url == repo_url
     if commit_hash != "main":
         assert repo_release.marker == commit_hash
@@ -91,7 +92,7 @@ def test_walk_cad_manifest_components(repo_path: Path, tmp_path: Path):
     component_count = 0
     file_count = 0
 
-    for component in service.walk_manifest_components(manifest_data):
+    for component in manifest_service.walk_manifest_components(manifest_data):
         assert isinstance(component, model.Component)
         component_count += 1
 
@@ -130,12 +131,12 @@ def _validate_manifest_files(
     missing_files = []
     existing_files = []
 
-    for component in service.walk_manifest_components(manifest_data):
+    for component in manifest_service.walk_manifest_components(manifest_data):
         # Now component is a Component dataclass instance
         for file_obj in component.files:
             file_path = file_obj.path
             if file_path:  # Only check non-empty paths
-                full_path = service.resolve_component_file_path(
+                full_path = manifest_service.resolve_component_file_path(
                     manifest_path, file_path, repo_path
                 )
                 if full_path.exists():
@@ -185,11 +186,11 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
     repo_url = release["url"]
     commit_hash = release["marker"]
 
-    repo_path = service.clone_repository(repo_url, commit_hash, tmp_path / "repo")
+    repo_path = git_service.clone_repository(repo_url, commit_hash, tmp_path / "repo")
     assert repo_path.exists(), "Repository directory should exist"
 
     # Step 2: Find CAD manifest files
-    cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
+    cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_path)
 
     # Both manifests should exist in this repository
     assert cad_manifest is not None, (
@@ -200,7 +201,7 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
     )
 
     # Step 3: Validate CAD files exist
-    service.validate_manifest_schema(cad_manifest)
+    manifest_service.validate_manifest_schema(cad_manifest)
 
     cad_existing_files, cad_missing_files = _validate_manifest_files(
         cad_manifest, repo_path
@@ -222,7 +223,7 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
     )
 
     # Step 4: Validate SIM manifest if it exists
-    service.validate_manifest_schema(sim_manifest)
+    manifest_service.validate_manifest_schema(sim_manifest)
 
 
 def test_lifespan_in_contextmanager(caplog: pytest.LogCaptureFixture):
