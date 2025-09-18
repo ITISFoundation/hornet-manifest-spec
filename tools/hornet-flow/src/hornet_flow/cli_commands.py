@@ -22,6 +22,7 @@ from .api import (
 )
 from .cli_exceptions import handle_command_errors
 from .cli_state import app_console, app_logger, merge_global_options
+from .watcher import watch_for_metadata
 
 # Type aliases for options repeated more than once
 VerboseOption = Annotated[
@@ -313,3 +314,104 @@ def cad_load_cmd(
     app_logger.info(
         "✅ Processed %d/%d components successfully", success_count, total_count
     )
+
+
+@handle_command_errors
+def workflow_watch_cmd(
+    inputs_dir: Annotated[
+        str,
+        typer.Option(
+            "--inputs-dir",
+            help="Directory to watch for metadata.json files",
+            envvar="INPUTS_DIR",
+        ),
+    ],
+    work_dir: Annotated[
+        str,
+        typer.Option(
+            "--work-dir",
+            help="Working directory for workflow processing",
+            envvar="WORK_DIR",
+        ),
+    ],
+    once: Annotated[
+        bool,
+        typer.Option(
+            "--once",
+            help="Exit after processing one file (default: continuous watching)",
+        ),
+    ] = False,
+    plugin: PluginOption = None,
+    type_filter: TypeFilterOption = None,
+    name_filter: NameFilterOption = None,
+    fail_fast: FailFastOption = False,
+    stability_seconds: Annotated[
+        float,
+        typer.Option(
+            "--stability-seconds",
+            help="Seconds to wait for file stability",
+            min=0.1,
+            max=30.0,
+        ),
+    ] = 2.0,
+    # CLI-specific options
+    verbose: VerboseOption = False,
+    quiet: QuietOption = False,
+    plain: PlainOption = False,
+) -> None:
+    """Watch for metadata.json files and automatically process them.
+
+    Monitors INPUTS_DIR for metadata.json files. When a file appears and becomes
+    stable, automatically runs the hornet-flow workflow with the detected metadata.
+    Creates WORK_DIR/hornet-flows if it doesn't exist.
+
+    Environment variables:
+    - INPUTS_DIR: Directory to watch (can be overridden with --inputs-dir)
+    - WORK_DIR: Base work directory (can be overridden with --work-dir)
+    """
+    # Merge global options (CLI-specific)
+    merge_global_options(
+        main_verbose=False,
+        main_quiet=False,
+        main_plain=False,
+        cmd_verbose=verbose,
+        cmd_quiet=quiet,
+        cmd_plain=plain,
+    )
+
+    app_logger.info("👀 Starting metadata file watcher")
+
+    # Validate and prepare directories
+    inputs_path = Path(inputs_dir).resolve()
+
+    # Create work_dir/hornet-flows structure
+    work_base = Path(work_dir).resolve()
+    work_path = work_base / "hornet-flows"
+
+    app_logger.info("📁 Inputs directory: %s", inputs_path)
+    app_logger.info("📁 Work directory: %s", work_path)
+
+    # Validate inputs directory exists
+    if not inputs_path.exists():
+        raise typer.BadParameter(f"Inputs directory does not exist: {inputs_path}")
+
+    if not inputs_path.is_dir():
+        raise typer.BadParameter(f"Inputs path is not a directory: {inputs_path}")
+
+    # Call the watcher function
+    try:
+        watch_for_metadata(
+            inputs_dir=inputs_path,
+            work_dir=work_path,
+            once=once,
+            plugin=plugin,
+            type_filter=type_filter,
+            name_filter=name_filter,
+            fail_fast=fail_fast,
+            stability_seconds=stability_seconds,
+        )
+    except KeyboardInterrupt:
+        app_logger.info("⛔ Watcher stopped by user")
+    except Exception as e:
+        app_logger.error("❌ Watcher failed: %s", e)
+        raise typer.Exit(1) from e

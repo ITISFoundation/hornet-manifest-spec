@@ -43,6 +43,17 @@ hornet-flow workflow run --repo-path /path/to/repo --name-filter electrode --ver
 
 # Fail fast mode (stop on first error)
 hornet-flow workflow run --metadata-file examples/metadata.json --fail-fast
+
+# Watch for metadata.json files and auto-process them
+hornet-flow workflow watch --inputs-dir /path/to/inputs --work-dir /path/to/work --verbose
+
+# Watch mode with environment variables
+export INPUTS_DIR=/path/to/inputs
+export WORK_DIR=/path/to/work
+hornet-flow workflow watch --verbose
+
+# Single file mode (exit after processing one file)
+hornet-flow workflow watch --inputs-dir /path/to/inputs --work-dir /path/to/work --once
 ```
 
 ### Repository Operations
@@ -108,6 +119,7 @@ hornet-flow workflow run --repo-path /path/to/repo --plugin debug --name-filter 
 ```
 
 **Available Plugins:**
+
 - `debug`: Simple logging plugin for testing and debugging
 - `osparc`: Integration with OSparc for CAD file loading
 
@@ -138,6 +150,51 @@ hornet-flow workflow run \
   --work-dir /tmp/hornet-flow \
   --cleanup \
   --verbose
+```
+
+#### Automated File Watching
+
+Watch for incoming metadata files and process them automatically:
+
+```bash
+# Basic watching with environment variables
+export INPUTS_DIR=/shared/inputs
+export WORK_DIR=/shared/work
+hornet-flow workflow watch --verbose
+
+# Watch with explicit paths
+hornet-flow workflow watch \
+  --inputs-dir /shared/inputs \
+  --work-dir /shared/work \
+  --verbose
+
+# Single file mode (Docker container scenario)
+hornet-flow workflow watch \
+  --inputs-dir /shared/inputs \
+  --work-dir /shared/work \
+  --once \
+  --verbose
+
+# With plugin and filtering options
+hornet-flow workflow watch \
+  --inputs-dir /shared/inputs \
+  --work-dir /shared/work \
+  --plugin osparc \
+  --type-filter assembly \
+  --fail-fast \
+  --stability-seconds 3.0 \
+  --verbose
+```
+
+**Docker Container Usage:**
+```bash
+# Run in a container watching for files
+docker run -v /host/inputs:/shared/inputs \
+           -v /host/work:/shared/work \
+           -e INPUTS_DIR=/shared/inputs \
+           -e WORK_DIR=/shared/work \
+           my-hornet-flow:latest \
+           hornet-flow workflow watch --once --verbose
 ```
 
 #### Step-by-Step Workflow

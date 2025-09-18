@@ -28,6 +28,7 @@ from .cli_commands import (
     manifest_validate_cmd,
     repo_clone_cmd,
     workflow_run_cmd,
+    workflow_watch_cmd,
 )
 from .cli_state import app_console, app_logger, app_state, merge_global_options
 
@@ -197,6 +198,7 @@ app.add_typer(cad_app, name="cad")
 
 # Register commands with their respective sub-apps
 workflow_app.command("run")(workflow_run_cmd)
+workflow_app.command("watch")(workflow_watch_cmd)
 repo_app.command("clone")(repo_clone_cmd)
 manifest_app.command("validate")(manifest_validate_cmd)
 manifest_app.command("show")(manifest_show_cmd)
