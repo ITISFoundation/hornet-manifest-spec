@@ -22,7 +22,7 @@ from .api import (
 )
 from .cli_exceptions import handle_command_errors
 from .cli_state import app_console, app_logger, merge_global_options
-from .watcher import watch_for_metadata
+from .services.watcher import watch_for_metadata
 
 # Type aliases for options repeated more than once
 VerboseOption = Annotated[

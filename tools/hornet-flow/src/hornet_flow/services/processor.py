@@ -9,7 +9,7 @@ from hornet_flow.logging_utils import log_lifespan
 from hornet_flow.plugins import get_default_plugin, get_plugin
 from hornet_flow.plugins.base import HornetFlowPlugin
 
-from .model import Component, Release
+from ..model import Component, Release
 
 
 class PluginProcessingError(Exception):

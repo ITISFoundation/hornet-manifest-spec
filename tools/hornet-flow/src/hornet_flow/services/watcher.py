@@ -10,8 +10,8 @@ from typing import Optional
 
 from watchfiles import watch
 
-from .api import run_workflow_api
-from .cli_state import app_logger
+from ..api import run_workflow_api
+from ..cli_state import app_logger
 
 
 def _check_file_stability(file_path: Path, stability_seconds: float = 2.0) -> bool:

@@ -21,7 +21,7 @@ from .exceptions import (
     ApiProcessingError,
     ApiValidationError,
 )
-from .processors import ManifestProcessor
+from .services.processor import ManifestProcessor
 
 _logger = logging.getLogger(__name__)
 
