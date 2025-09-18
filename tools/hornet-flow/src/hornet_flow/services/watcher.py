@@ -11,7 +11,7 @@ from typing import Optional
 from watchfiles import watch
 
 from ..cli_state import app_logger
-from .workflow_service import run_workflow
+from . import workflow_service
 
 
 def _check_file_stability(file_path: Path, stability_seconds: float = 2.0) -> bool:
@@ -71,7 +71,7 @@ def _process_metadata_file(
     work_dir.mkdir(parents=True, exist_ok=True)
 
     # Call the workflow service
-    return run_workflow(
+    return workflow_service.run_workflow(
         metadata_file_path=metadata_path,
         work_dir=work_dir,
         plugin=plugin,
