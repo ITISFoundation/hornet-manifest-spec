@@ -4,12 +4,12 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from hornet_flow import service
 from hornet_flow.logging_utils import log_lifespan
 from hornet_flow.plugins import get_default_plugin, get_plugin
 from hornet_flow.plugins.base import HornetFlowPlugin
 
 from ..model import Component, Release
+from . import git_service, manifest_service
 
 
 class PluginProcessingError(Exception):
@@ -36,7 +36,7 @@ class ManifestProcessor:
         if repo_release:
             return repo_release
         try:
-            return service.extract_git_repo_info(repo_path)
+            return git_service.extract_git_repo_info(repo_path)
         except ValueError as e:
             self.logger.warning("Could not extract git repository information: %s", e)
             return None
@@ -100,7 +100,7 @@ class ManifestProcessor:
                 f"Processing manifest '{manifest_path.name}' with plugin '{self.plugin_name}'",
                 level=logging.DEBUG,
             ):
-                manifest_data = service.read_manifest_contents(manifest_path)
+                manifest_data = manifest_service.read_manifest_contents(manifest_path)
                 return self._process_components(
                     manifest_data,
                     manifest_path,
@@ -134,7 +134,7 @@ class ManifestProcessor:
         success_count = 0
         total_count = 0
 
-        for component in service.walk_manifest_components(manifest_data):
+        for component in manifest_service.walk_manifest_components(manifest_data):
             total_count += 1
 
             # Apply filters
@@ -177,7 +177,7 @@ class ManifestProcessor:
         """Resolve component file paths and validate existence."""
         component_files = []
         for file_obj in component.files:
-            file_path = service.resolve_component_file_path(
+            file_path = manifest_service.resolve_component_file_path(
                 manifest_path, file_obj.path, repo_path
             )
             if file_path.exists():

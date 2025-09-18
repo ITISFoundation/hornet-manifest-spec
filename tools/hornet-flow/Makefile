@@ -24,11 +24,11 @@ venv: check-deps
 # Test targets
 test:  ## Run tests
 	@echo "Running all tests..."
-	uv run pytest -v
+	uv run pytest -v test.py
 
 test-unit:
 	@echo "Running unit tests..."
-	uv run pytest test.py -v -k "not integration"
+	uv run pytest test.py -v -k "not integration" .
 
 test-integration:  ## Run integration tests
 	@echo "Running integration tests..."

@@ -16,8 +16,8 @@ from rich.panel import Panel
 from rich.table import Table
 
 import hornet_flow
-from hornet_flow import service
 from hornet_flow.plugins import discover_plugins, get_default_plugin
+from hornet_flow.services import git_service
 
 from .cli_commands import (
     PlainOption,
@@ -97,7 +97,7 @@ def show_info(
     version_table.add_row("Platform", platform.platform())
 
     # Check git version
-    git_version = service.check_git_version()
+    git_version = git_service.check_git_version()
     if git_version:
         version_table.add_row("Git", git_version)
     else:
