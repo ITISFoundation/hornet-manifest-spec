@@ -13,13 +13,14 @@ from typing import Any, Dict, Optional, Tuple, TypeAlias
 
 import jsonschema
 
-from . import service
 from .exceptions import (
     ApiFileNotFoundError,
     ApiInputValueError,
     ApiProcessingError,
     ApiValidationError,
 )
+from .model import Release
+from .services import git_service, manifest_service
 from .services.processor import ManifestProcessor
 from .services.workflow_service import run_workflow
 
@@ -51,7 +52,7 @@ def _create_processing_error(
 def validate_manifest_schema_api(manifest_path: Path, manifest_type: str) -> None:
     """Validate a manifest schema - pure API function."""
     try:
-        service.validate_manifest_schema(manifest_path)
+        manifest_service.validate_manifest_schema(manifest_path)
     except jsonschema.ValidationError as e:
         msg = f"{manifest_type} manifest schema validation failed: {e.message}"
         raise ApiValidationError(msg) from e
@@ -63,7 +64,7 @@ def process_manifest_with_plugin_api(
     plugin_name: Optional[str] = None,
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
-    repo_release: Optional[service.Release] = None,
+    repo_release: Optional[Release] = None,
 ) -> Tuple[SuccessCountInt, TotalCountInt]:
     """Process CAD manifest using specified plugin - pure API function."""
     processor = ManifestProcessor(plugin_name, _logger)
@@ -86,11 +87,11 @@ def process_manifests_api(
     plugin_name: Optional[str] = None,
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
-    release: Optional[service.Release] = None,
+    release: Optional[Release] = None,
 ) -> Tuple[SuccessCountInt, TotalCountInt]:
     """Process manifests found in repository - pure API function."""
     # 1. Find hornet manifests
-    cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
+    cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_path)
 
     if not cad_manifest and not sim_manifest:
         msg = f"No hornet manifest files found in repository at {repo_path}"
@@ -175,7 +176,7 @@ def clone_repository_api(
     dest_path = Path(dest or tempfile.gettempdir()).resolve()
 
     try:
-        repo_path = service.clone_repository(repo_url, commit, dest_path)
+        repo_path = git_service.clone_repository(repo_url, commit, dest_path)
         return repo_path
     except subprocess.CalledProcessError as e:
         raise _create_processing_error(e, "clone repository") from e
@@ -184,7 +185,7 @@ def clone_repository_api(
 def validate_manifests_api(repo_path: str) -> Tuple[bool, bool]:
     """Validate hornet manifests against their schemas - pure API function."""
     repo_dir = Path(repo_path)
-    cad_manifest, sim_manifest = service.find_hornet_manifests(repo_dir)
+    cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_dir)
 
     if not cad_manifest and not sim_manifest:
         raise ApiFileNotFoundError("No hornet manifest files found")
@@ -208,7 +209,7 @@ def validate_manifests_api(repo_path: str) -> Tuple[bool, bool]:
 def show_manifest_api(repo_path: str, manifest_type: str = "both") -> Dict[str, Any]:
     """Get manifest contents - pure API function."""
     repo_dir = Path(repo_path)
-    cad_manifest, sim_manifest = service.find_hornet_manifests(repo_dir)
+    cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_dir)
 
     result = {}
 
@@ -227,11 +228,11 @@ def show_manifest_api(repo_path: str, manifest_type: str = "both") -> Dict[str, 
 
     # Get CAD manifest if requested and exists
     if manifest_type.lower() in ["cad", "both"] and cad_manifest:
-        result["cad"] = service.read_manifest_contents(cad_manifest)
+        result["cad"] = manifest_service.read_manifest_contents(cad_manifest)
 
     # Get SIM manifest if requested and exists
     if manifest_type.lower() in ["sim", "both"] and sim_manifest:
-        result["sim"] = service.read_manifest_contents(sim_manifest)
+        result["sim"] = manifest_service.read_manifest_contents(sim_manifest)
 
     return result
 

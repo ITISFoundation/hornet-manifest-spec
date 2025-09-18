@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from hornet_flow import logging_utils, model, service
+from hornet_flow import logging_utils, model
 
 _CURRENT_DIR = Path(
     sys.argv[0] if __name__ == "__main__" else __file__
@@ -39,7 +39,7 @@ def test_load_metadata_portal_device():
     metadata_path = Path(__file__).parent / "examples" / "portal-device-metadata.json"
 
     # Load the metadata
-    release = service.load_metadata_release(metadata_path)
+    release = metadata_service.load_metadata_release(metadata_path)
 
     # Verify release information]
     assert release == model.Release(

@@ -10,8 +10,9 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Tuple
 
-from .. import service
-from ..services.processor import ManifestProcessor
+from ..model import Release
+from . import git_service, manifest_service, metadata_service
+from .processor import ManifestProcessor
 
 _logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ def run_workflow(
     release = None
     if metadata_file_path:
         # Extract release info
-        release = service.load_metadata_release(str(metadata_file_path))
+        release = metadata_service.load_metadata_release(str(metadata_file_path))
         repo_url = release.url
         repo_commit = release.marker
 
@@ -80,7 +81,7 @@ def run_workflow(
 
         try:
             # Clone repo
-            service.clone_repository(repo_url, repo_commit, target_repo_path)
+            git_service.clone_repository(repo_url, repo_commit, target_repo_path)
 
             # Process manifests
             return _process_manifests(
@@ -105,11 +106,11 @@ def _process_manifests(
     plugin_name: Optional[str] = None,
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
-    release: Optional[service.Release] = None,
+    release: Optional[Release] = None,
 ) -> Tuple[int, int]:
     """Process manifests found in repository."""
     # 1. Find hornet manifests
-    cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
+    cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_path)
 
     if not cad_manifest and not sim_manifest:
         raise FileNotFoundError(
@@ -121,7 +122,7 @@ def _process_manifests(
 
     if cad_manifest:
         try:
-            service.validate_manifest_schema(cad_manifest)
+            manifest_service.validate_manifest_schema(cad_manifest)
         except Exception as e:
             if fail_fast:
                 raise
@@ -129,7 +130,7 @@ def _process_manifests(
 
     if sim_manifest:
         try:
-            service.validate_manifest_schema(sim_manifest)
+            manifest_service.validate_manifest_schema(sim_manifest)
         except Exception as e:
             if fail_fast:
                 raise
@@ -160,7 +161,7 @@ def _process_manifest_with_plugin(
     plugin_name: Optional[str] = None,
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
-    repo_release: Optional[service.Release] = None,
+    repo_release: Optional[Release] = None,
 ) -> Tuple[int, int]:
     """Process CAD manifest using specified plugin."""
     processor = ManifestProcessor(plugin_name, _logger)
