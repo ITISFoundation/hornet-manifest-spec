@@ -35,7 +35,7 @@ class HornetFlowPlugin(ABC):
         component_type: str,
         component_description: Optional[str],
         component_files: list[Path],
-        component_parent_id: list[str],
+        component_parent_path: list[str],
     ) -> bool:
         """
         Process a single component from the manifest.

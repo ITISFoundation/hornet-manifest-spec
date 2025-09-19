@@ -64,7 +64,7 @@ def read_manifest_contents(manifest: Path) -> dict[str, Any]:
 
 
 def walk_manifest_components(
-    manifest_data: Dict[str, Any], parent_id: Optional[list[str]] = None
+    manifest_data: Dict[str, Any], parent_path: Optional[list[str]] = None
 ) -> Iterator[Component]:
     """Walk through manifest components and yield Component dataclass instances.
 
@@ -75,8 +75,8 @@ def walk_manifest_components(
     Yields:
         Component: Component dataclass instances with proper parent tracking
     """
-    if parent_id is None:
-        parent_id = []
+    if parent_path is None:
+        parent_path = []
 
     # Get components from manifest
     components = manifest_data.get("components", [])
@@ -94,7 +94,7 @@ def walk_manifest_components(
             type=component_dict["type"],
             description=component_dict["description"],
             files=files,
-            parent_id=parent_id.copy(),
+            parent_path=parent_path.copy(),
         )
 
         # Yield the current component
@@ -103,12 +103,12 @@ def walk_manifest_components(
         # Recursively walk child components if they exist
         if "components" in component_dict and component_dict["components"]:
             # Create new parent path for children
-            child_parent_id = parent_id + [component_dict["id"]]
+            child_path = parent_path + [component_dict["id"]]
 
             # Create a temporary manifest structure for recursion
             child_manifest = {"components": component_dict["components"]}
 
-            yield from walk_manifest_components(child_manifest, child_parent_id)
+            yield from walk_manifest_components(child_manifest, child_path)
 
 
 def resolve_component_file_path(

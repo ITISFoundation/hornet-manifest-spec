@@ -45,7 +45,7 @@ class DebugPlugin(HornetFlowPlugin):
         component_type: str,
         component_description: Optional[str],
         component_files: list[Path],
-        component_parent_id: list[str],
+        component_parent_path: list[str],
     ) -> bool:
         """Process component with debug logging."""
         self.component_count += 1
@@ -53,8 +53,8 @@ class DebugPlugin(HornetFlowPlugin):
         self.logger.info("🔍 Component #%d: %s", self.component_count, component_id)
         self.logger.info("   Type: %s", component_type)
         self.logger.info(
-            "   Parent: %s",
-            "/".join(component_parent_id) if component_parent_id else "None",
+            "   Parent: '%s'",
+            "/".join(component_parent_path) if component_parent_path else "None",
         )
         self.logger.info(
             "   Description: %s",

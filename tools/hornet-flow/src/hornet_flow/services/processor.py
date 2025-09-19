@@ -200,7 +200,7 @@ class ManifestProcessor:
                 component_type=component.type,
                 component_description=component.description,
                 component_files=component_files,
-                component_parent_id=component.parent_id,
+                component_parent_path=component.parent_path,
             )
 
             if success:

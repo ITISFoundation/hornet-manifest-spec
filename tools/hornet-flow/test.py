@@ -106,7 +106,7 @@ def test_walk_cad_manifest_components(repo_path: Path, tmp_path: Path):
         file_count += len(component.files)
 
         # Create a directory for each component using its id
-        folder_parts = component.parent_id + [component.id]
+        folder_parts = component.parent_path + [component.id]
         component_dir = Path.joinpath(tmp_path, *folder_parts)
         component_dir.mkdir(exist_ok=True)
         assert component_dir.exists() and component_dir.is_dir()
