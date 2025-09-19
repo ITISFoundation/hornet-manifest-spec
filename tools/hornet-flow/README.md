@@ -29,13 +29,13 @@ Run complete workflows to process hornet manifests:
 hornet-flow workflow run --metadata-file examples/portal-device-metadata.json --verbose
 
 # Using inline repository parameters
-hornet-flow workflow run --repo-url https://github.com/example/repo --commit main --verbose
+hornet-flow workflow run --repo-url https://github.com/COSMIIC-Inc/Implantables-Electrodes --commit main --verbose
 
 # Using an already-cloned repository
 hornet-flow workflow run --repo-path /path/to/local/repo --verbose
 
 # Using a specific plugin
-hornet-flow workflow run --repo-url https://github.com/example/repo --plugin osparc --verbose
+hornet-flow workflow run --repo-url https://github.com/CARSSCenter/Sub-mm-Parylene-Cuff-Electrode --plugin osparc --verbose
 
 # With component filtering
 hornet-flow workflow run --repo-path /path/to/repo --type-filter assembly --verbose
@@ -62,13 +62,13 @@ Clone repositories and manage git operations:
 
 ```bash
 # Clone repository to default temp directory
-hornet-flow repo clone --repo-url https://github.com/example/repo
+hornet-flow repo clone --repo-url https://github.com/COSMIIC-Inc/Implantables-Electrodes
 
 # Clone to specific destination
-hornet-flow repo clone --repo-url https://github.com/example/repo --dest /tmp/my-repo
+hornet-flow repo clone --repo-url https://github.com/COSMIIC-Inc/Implantables-Electrodes --dest /tmp/my-repo
 
 # Clone specific commit
-hornet-flow repo clone --repo-url https://github.com/example/repo --commit abc123 --dest /tmp/my-repo
+hornet-flow repo clone --repo-url https://github.com/COSMIIC-Inc/Implantables-Electrodes --commit 095a255 --dest /tmp/my-repo
 ```
 
 ### Manifest Operations
@@ -202,7 +202,7 @@ docker run -v /host/inputs:/shared/inputs \
 1. **Clone a repository:**
 ```bash
 hornet-flow repo clone \
-  --repo-url https://github.com/COSMIIC-Inc/Implantables-Electrodes \
+  --repo-url https://github.com/CARSSCenter/Sub-mm-Parylene-Cuff-Electrode \
   --dest /tmp/electrodes \
   --verbose
 ```
@@ -241,7 +241,7 @@ hornet-flow workflow run \
 **With inline repository parameters:**
 ```bash
 hornet-flow workflow run \
-  --repo-url https://github.com/example/repo \
+  --repo-url https://github.com/CARSSCenter/Sub-mm-Parylene-Cuff-Electrode \
   --commit abc123 \
   --verbose
 ```
