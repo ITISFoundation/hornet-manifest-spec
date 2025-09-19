@@ -21,16 +21,21 @@ def _app_lifespan(logger: logging.Logger) -> Iterator[XCore.Application]:
         old_log_level = XCore.GetLogLevel()
         XCore.SetLogLevel(XCore.eLogCategory.Warning)
 
-        theapp = XCore.GetOrCreateConsoleApp()
-        logger.debug("OSparc app initialized: %s", theapp)
+        console_app = XCore.GetOrCreateConsoleApp()
+        logger.debug("OSparc app initialized: %s", console_app)
 
-        assert theapp == XCore.GetApp(), "App instance should be the same"
+        logger.info("Application Name: %s", console_app.ApplicationName)
+        logger.info("Application Type: %s", console_app.ApplicationType)
+        logger.info("Version: %s", console_app.Version)
+        logger.info("Build Number: %s", console_app.BuildNumber)
+
+        assert console_app == XCore.GetApp(), "App instance should be the same"
         logger.debug("Active model: %s", XCoreModeling.GetActiveModel())
 
-        theapp.NewDocument()
+        console_app.NewDocument()
 
         try:
-            yield theapp  # ------------------
+            yield console_app  # ------------------
         finally:
             XCore.SetLogLevel(old_log_level)
 
@@ -129,8 +134,6 @@ class OSparcPlugin(HornetFlowPlugin):
 
         # setup lifespan contexts
         app = self._stack.enter_context(_app_lifespan(self._logger))
-        # TODO: log info about app, model, etc
-
         self._stack.enter_context(_app_document_lifespan(self._logger, app, repo_path))
 
         self._main_group = self._stack.enter_context(
