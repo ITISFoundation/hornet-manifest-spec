@@ -23,11 +23,8 @@ def _app_lifespan(logger: logging.Logger) -> Iterator[XCore.Application]:
 
         console_app = XCore.GetOrCreateConsoleApp()
         logger.debug("OSparc app initialized: %s", console_app)
-
         logger.info("Application Name: %s", console_app.ApplicationName)
-        logger.info("Application Type: %s", console_app.ApplicationType)
         logger.info("Version: %s", console_app.Version)
-        logger.info("Build Number: %s", console_app.BuildNumber)
 
         assert console_app == XCore.GetApp(), "App instance should be the same"
         logger.debug("Active model: %s", XCoreModeling.GetActiveModel())
