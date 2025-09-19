@@ -1,67 +1,17 @@
+"""Manifest operations service.
+
+This module provides functionality for working with hornet manifest files including
+finding, validating, reading, and processing manifest contents.
+"""
+
 import json
-import subprocess
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
 import httpx
 import jsonschema
 
-from .model import Component, File, validate_metadata
-
-
-def load_metadata(metadata_path: Path | str) -> dict[str, Any]:
-    """Load and parse the metadata JSON file from local path."""
-    metadata_file = Path(metadata_path)
-    with metadata_file.open("r", encoding="utf-8") as f:
-        metadata = json.load(f)
-
-    return validate_metadata(metadata)
-
-
-def clone_repository(repo_url: str, commit_hash: str, target_dir: Path | str) -> Path:
-    """Clone repository and checkout specific commit."""
-    target_path = Path(target_dir)
-    target_path.mkdir(parents=True, exist_ok=True)
-
-    # Clone with depth 1 first
-    subprocess.run(
-        [
-            "git",
-            "clone",
-            "--depth",
-            "1",
-            "--no-single-branch",
-            repo_url,
-            str(target_path),
-        ],
-        check=True,
-        capture_output=True,
-    )
-
-    # Try to checkout the commit, if it fails, fetch it specifically
-    try:
-        subprocess.run(
-            ["git", "checkout", commit_hash],
-            cwd=str(target_path),
-            check=True,
-            capture_output=True,
-        )
-    except subprocess.CalledProcessError:
-        # Commit not in shallow clone, fetch it specifically
-        subprocess.run(
-            ["git", "fetch", "--depth", "1", "origin", commit_hash],
-            cwd=str(target_path),
-            check=True,
-            capture_output=True,
-        )
-        subprocess.run(
-            ["git", "checkout", commit_hash],
-            cwd=str(target_path),
-            check=True,
-            capture_output=True,
-        )
-
-    return target_path
+from ..model import Component, File
 
 
 def find_hornet_manifests(repo_path: Path | str) -> tuple[Path | None, Path | None]:
@@ -107,8 +57,14 @@ def validate_manifest_schema(manifest_file: Path):
     jsonschema.validate(manifest, schema)
 
 
+def read_manifest_contents(manifest: Path) -> dict[str, Any]:
+    """Read and return the JSON contents of a manifest file."""
+    with manifest.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 def walk_manifest_components(
-    manifest_data: Dict[str, Any], parent_id: Optional[list[str]] = None
+    manifest_data: Dict[str, Any], parent_path: Optional[list[str]] = None
 ) -> Iterator[Component]:
     """Walk through manifest components and yield Component dataclass instances.
 
@@ -119,8 +75,8 @@ def walk_manifest_components(
     Yields:
         Component: Component dataclass instances with proper parent tracking
     """
-    if parent_id is None:
-        parent_id = []
+    if parent_path is None:
+        parent_path = []
 
     # Get components from manifest
     components = manifest_data.get("components", [])
@@ -138,7 +94,7 @@ def walk_manifest_components(
             type=component_dict["type"],
             description=component_dict["description"],
             files=files,
-            parent_id=parent_id.copy(),
+            parent_path=parent_path.copy(),
         )
 
         # Yield the current component
@@ -147,12 +103,12 @@ def walk_manifest_components(
         # Recursively walk child components if they exist
         if "components" in component_dict and component_dict["components"]:
             # Create new parent path for children
-            child_parent_id = parent_id + [component_dict["id"]]
+            child_path = parent_path + [component_dict["id"]]
 
             # Create a temporary manifest structure for recursion
             child_manifest = {"components": component_dict["components"]}
 
-            yield from walk_manifest_components(child_manifest, child_parent_id)
+            yield from walk_manifest_components(child_manifest, child_path)
 
 
 def resolve_component_file_path(
@@ -168,4 +124,8 @@ def resolve_component_file_path(
     return base_dir / file_path
 
 
-# TODO: validate that references in sim-manifest.json exist in cad-manifest.json
+def validate_sim_manifest_references(
+    sim_manifest: Path, cad_components: Iterator[Component]
+):
+    """Validate that all references in sim-manifest.json exist in cad-manifest.json."""
+    raise NotImplementedError

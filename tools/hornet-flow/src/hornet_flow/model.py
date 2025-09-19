@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Any, List, Literal
+from typing import Any, List, Literal, TypeAlias
 
 import jsonschema
+
+IDStr: TypeAlias = str  # For clarity in type hints
 
 
 @dataclass
@@ -16,12 +18,16 @@ class File:
 class Component:
     """Represents a component in the CAD manifest."""
 
-    id: str
+    id: IDStr
     type: Literal["assembly", "part"]
     description: str
     files: List[File]
     components: List["Component"] = field(default_factory=list)  # Only for assemblies
-    parent_id: List[str] = field(default_factory=list)  # Path to parent components
+
+    # Extras
+    parent_path: List[IDStr] = field(
+        default_factory=list
+    )  # Path to parent component from root e.g. ["compA", "subCompB"]
 
 
 _metadata_model_schema = {
@@ -52,6 +58,14 @@ _metadata_model_schema = {
 }
 
 
-def validate_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+@dataclass
+class Release:
+    origin: str
+    url: str
+    label: str
+    marker: str
+
+
+def validate_metadata_and_get_release(metadata: dict[str, Any]) -> Release:
     jsonschema.validate(instance=metadata, schema=_metadata_model_schema)
-    return metadata
+    return Release(**metadata["release"])

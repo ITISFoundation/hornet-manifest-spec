@@ -1,315 +1,209 @@
-import json
-import logging
-import shutil
-import subprocess
+"""CLI application setup and entry point for hornet-flow.
+
+This module contains the Typer app setup, global options, sub-app registration,
+and the main entry point. All command implementations are in cli_commands.py.
+"""
+
+import os
+import platform
 import sys
 import tempfile
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Optional
 
-import jsonschema
 import typer
-from rich.console import Console
-from rich.logging import RichHandler
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.panel import Panel
+from rich.table import Table
 
-from hornet_flow import service
+import hornet_flow
+from hornet_flow.plugins import discover_plugins, get_default_plugin
+from hornet_flow.services import git_service
 
-console = Console()
+from .cli_commands import (
+    PlainOption,
+    QuietOption,
+    VerboseOption,
+    cad_load_cmd,
+    manifest_show_cmd,
+    manifest_validate_cmd,
+    repo_clone_cmd,
+    workflow_run_cmd,
+    workflow_watch_cmd,
+)
+from .cli_state import app_console, app_logger, app_state, merge_global_options
+
+__version__ = "0.2.0"
+
+
+def version_callback(value: bool):
+    if value:
+        app_console.print(f"hornet-flow version {__version__}")
+        raise typer.Exit(os.EX_OK)
+
+
+#
+# CLI APPLICATION
+#
+
 app = typer.Typer(help="Hornet Manifest Flow - Load and process hornet manifests")
 
-_logger = logging.getLogger(__name__)
+
+# Create sub-apps for each resource
+workflow_app = typer.Typer(help="Workflow operations")
+repo_app = typer.Typer(help="Repository operations")
+manifest_app = typer.Typer(help="Manifest operations")
+cad_app = typer.Typer(help="CAD operations")
 
 
-class HornetManifestProcessor:
-    """CLI processor for loading and processing hornet manifests with logging and error handling."""
-
-    def __init__(self, fail_fast: bool = False) -> None:
-        self.fail_fast = fail_fast
-        self.errors: list[str] = []
-        self.warnings: list[str] = []
-
-    def load_metadata(self, metadata_path: Path | str) -> dict[str, Any]:
-        """Load and parse the metadata JSON file from local path."""
-        try:
-            metadata = service.load_metadata(metadata_path)
-            _logger.info("Loaded metadata from %s", metadata_path)
-            return metadata
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Failed to load metadata from {metadata_path}: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            return {}
-
-    def clone_repository(
-        self, repo_url: str, commit_hash: str, target_dir: Path | str
-    ) -> str:
-        """Clone repository with depth 1 and checkout specific commit."""
-        try:
-            target_path = Path(target_dir)
-            repo_path = target_path / "repo"
-
-            _logger.info("Cloning repository: %s", repo_url)
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-                transient=True,
-            ) as progress:
-                task = progress.add_task("Cloning repository...", total=None)
-                service.clone_repository(repo_url, commit_hash, repo_path)
-                progress.update(task, description="Repository cloned successfully")
-
-            _logger.info("Successfully cloned repository at commit %s", commit_hash[:8])
-
-            return str(repo_path)
-
-        except subprocess.CalledProcessError as e:
-            error_msg = f"Failed to clone repository {repo_url}: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            return ""
-
-    def find_hornet_manifests(
-        self, repo_path: Path | str
-    ) -> tuple[Path | None, Path | None]:
-        """Look for .hornet/cad_manifest.json and .hornet/sim_manifest.json."""
-
-        cad_manifest, sim_manifest = service.find_hornet_manifests(repo_path)
-
-        if cad_manifest:
-            _logger.info("Found CAD manifest: %s", cad_manifest)
-        if sim_manifest:
-            _logger.info("Found SIM manifest: %s", sim_manifest)
-
-        if not cad_manifest and not sim_manifest:
-            _logger.error("No hornet manifest files found in repository")
-            self._handle_error("No hornet manifest files found in repository")
-
-        return cad_manifest, sim_manifest
-
-    def validate_manifest_schema(self, manifest_path: Path | str) -> bool:
-        """Extract $schema URL from manifest file and validate using jsonschema."""
-        try:
-            service.validate_manifest_schema(Path(manifest_path))
-            _logger.info("Schema validation successful for %s", manifest_path)
-            return True
-
-        except jsonschema.ValidationError as e:
-            error_msg = f"Schema validation failed for {manifest_path}: {e.message}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            return False
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Failed to validate schema for {manifest_path}: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            return False
-
-    def validate_cad_files_exist(
-        self, cad_manifest_path: Path | str, repo_path: Path | str
-    ) -> list[Path]:
-        """Parse CAD manifest JSON tree and verify referenced files exist."""
-        try:
-            manifest_file = Path(cad_manifest_path)
-            repo_dir = Path(repo_path)
-
-            with manifest_file.open("r", encoding="utf-8") as f:
-                manifest = json.load(f)
-
-            valid_files: list[Path] = []
-
-            for component in service.walk_manifest_components(manifest):
-                for file_obj in component.files:
-                    file_path = file_obj.path
-
-                    full_path = service.resolve_component_file_path(
-                        manifest_file, file_path, repo_dir
-                    )
-
-                    if full_path.exists():
-                        valid_files.append(full_path)
-                        _logger.debug("Found file: %s", file_path)
-                    else:
-                        error_msg = f"Missing file referenced in manifest: {full_path}"
-                        _logger.error(error_msg)
-                        self._handle_error(error_msg)
-
-            _logger.info("Validated %d CAD files", len(valid_files))
-            return valid_files
-
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Failed to validate CAD files from {cad_manifest_path}: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            return []
-
-    def load_cad_file(self, file_path: Path) -> None:
-        """Mock function that prints file path for now."""
-        _logger.debug("Loading CAD file: %s", file_path)
-        # TODO: Implement actual CAD file loading logic here
-
-    def cleanup_repository(self, repo_path: Path | str) -> None:
-        """Explicitly remove cloned repository directory."""
-        try:
-            repo_dir = Path(repo_path)
-            if repo_dir.exists():
-                shutil.rmtree(repo_dir)
-                _logger.info("Cleaned up repository at %s", repo_dir)
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Failed to cleanup repository {repo_path}: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-
-    def process_hornet_manifest(
-        self, metadata_path: Path | str, work_dir: Path | str, cleanup: bool = False
-    ) -> dict[str, Any]:
-        """Main orchestration function that calls all steps in sequence."""
-        results: dict[str, Any] = {
-            "success": False,
-            "errors": [],
-            "warnings": [],
-            "processed_files": [],
-        }
-
-        try:
-            # Step 1: Load metadata
-            metadata = self.load_metadata(metadata_path)
-            if not metadata:
-                return results
-
-            # Step 2: Extract release info
-            release = metadata.get("release", {})
-            repo_url = release.get("url", "")
-            commit_hash = release.get("marker", "")
-
-            if not repo_url or not commit_hash:
-                error_msg = "Missing repository URL or commit hash in metadata"
-                _logger.error(error_msg)
-                self._handle_error(error_msg)
-                return results
-
-            # Create working directory
-            work_path = Path(work_dir)
-            with tempfile.TemporaryDirectory(dir=work_path) as temp_dir:
-                temp_path = Path(temp_dir)
-
-                # Step 1: Clone repository
-                repo_path = self.clone_repository(repo_url, commit_hash, temp_path)
-                if not repo_path:
-                    return results
-
-                # Step 2: Find hornet manifests (check both repo and extracted content)
-                cad_manifest, sim_manifest = self.find_hornet_manifests(repo_path)
-
-                # Step 3: Validate manifests against schemas
-                if cad_manifest and not self.validate_manifest_schema(cad_manifest):
-                    if self.fail_fast:
-                        return results
-
-                if sim_manifest and not self.validate_manifest_schema(sim_manifest):
-                    if self.fail_fast:
-                        return results
-
-                # Step 4: Validate and load CAD files
-                if cad_manifest:
-                    valid_files = self.validate_cad_files_exist(cad_manifest, repo_path)
-                    for file_path in valid_files:
-                        self.load_cad_file(file_path)
-                        results["processed_files"].append(file_path)
-
-                # Step 5: Cleanup if requested
-                if cleanup:
-                    self.cleanup_repository(repo_path)
-
-            results["success"] = len(self.errors) == 0 or not self.fail_fast
-            results["errors"] = self.errors
-            results["warnings"] = self.warnings
-
-            return results
-
-        except Exception as e:  # pylint: disable=W0718:broad-exception-caught
-            error_msg = f"Unexpected error during processing: {e}"
-            _logger.error(error_msg)
-            self._handle_error(error_msg)
-            results["errors"] = self.errors
-            return results
-
-    def _handle_error(self, error_msg: str) -> None:
-        """Handle errors based on fail_fast mode."""
-        _logger.error(error_msg)
-        self.errors.append(error_msg)
-        if self.fail_fast:
-            sys.exit(1)
-
-
-@app.command()
+# Global version option
+@app.callback()
 def main(
-    metadata_path: Annotated[str, typer.Argument(help="Path to metadata JSON file")],
-    work_dir: Annotated[
-        str, typer.Option("/tmp", "--work-dir", help="Working directory for clones")
-    ],
-    fail_fast: Annotated[
-        bool, typer.Option("--fail-fast", help="Stop on first error")
-    ] = False,
-    cleanup: Annotated[
-        bool, typer.Option("--cleanup", help="Clean up cloned repo")
-    ] = False,
-    verbose: Annotated[
-        bool, typer.Option("--verbose", "-v", help="Enable verbose logging")
-    ] = False,
-    quiet: Annotated[
-        bool, typer.Option("--quiet", "-q", help="Only show errors")
-    ] = False,
+    verbose: VerboseOption = False,
+    quiet: QuietOption = False,
+    plain: PlainOption = False,
+    version: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--version", callback=version_callback, help="Show version and exit"
+        ),
+    ] = None,
+):
+    """Hornet Manifest Flow - Load and process hornet manifests"""
+    _ = version
+    # Store global options in app state
+    app_state.verbose = verbose
+    app_state.quiet = quiet
+    app_state.plain = plain
+
+
+@app.command("info")
+def show_info(
+    verbose: VerboseOption = False,
 ) -> None:
-    """
-    Hornet Manifest Flow
+    """Show current configuration and system information."""
 
-    Loads metadata from a JSON file, clones a git repository,
-    and loads CAD files according to the manifest specifications.
-    """
-    # Configure logging
-    if quiet:
-        log_level = logging.ERROR
-    elif verbose:
-        log_level = logging.DEBUG
+    merge_global_options(app_state.verbose, False, False, verbose, False, False)
+
+    app_console.print()
+    app_console.print(Panel.fit("🔧 Hornet Flow Configuration", style="bold blue"))
+
+    # Version information
+    version_table = Table(show_header=False, box=None, padding=(0, 1))
+    version_table.add_column("Property", style="cyan", min_width=20)
+    version_table.add_column("Value", style="white")
+
+    version_table.add_row("Version", f"v{__version__}")
+    version_table.add_row("Python", f"{sys.version.split()[0]}")
+    version_table.add_row("Platform", platform.platform())
+
+    # Check git version
+    git_version = git_service.check_git_version()
+    if git_version:
+        version_table.add_row("Git", git_version)
     else:
-        log_level = logging.INFO
+        version_table.add_row("Git", "[red]Not found or not working[/red]")
 
-    logging.basicConfig(
-        level=log_level,
-        format="%(message)s",
-        handlers=[RichHandler(console=console, markup=True)],
-    )
+    app_console.print()
+    app_console.print("📋 Version Information")
+    app_console.print(version_table)
 
-    console.print("[bold blue]🚀 Hornet Manifest Flow[/bold blue]")
-    console.print(f"Processing metadata: [cyan]{metadata_path}[/cyan]")
+    # Plugin information
+    try:
+        plugins = discover_plugins()
+        default_plugin = get_default_plugin()
 
-    processor = HornetManifestProcessor(fail_fast=fail_fast)
-    results = processor.process_hornet_manifest(
-        Path(metadata_path), Path(work_dir), cleanup=cleanup
-    )
+        app_console.print()
+        app_console.print("🔌 Available Plugins")
 
-    # Print summary
-    status = (
-        "[green]✓ completed[/green]" if results["success"] else "[red]✗ failed[/red]"
-    )
-    console.print(f"\n[bold]Processing {status}[/bold]")
-    console.print(f"📁 Files processed: [cyan]{len(results['processed_files'])}[/cyan]")
-    console.print(f"❌ Errors: [red]{len(results['errors'])}[/red]")
-    console.print(f"⚠️  Warnings: [yellow]{len(results['warnings'])}[/yellow]")
+        if plugins:
+            plugin_table = Table(show_header=True, box=None, padding=(0, 1))
+            plugin_table.add_column("Name", style="cyan", min_width=15)
+            plugin_table.add_column("Status", style="white", min_width=10)
+            plugin_table.add_column("Description", style="dim")
 
-    if results["errors"]:
-        console.print(f"\n[bold red]Errors ({len(results['errors'])}):[/bold red]")
-        for error in results["errors"]:
-            console.print(f"  [red]•[/red] {error}")
+            for plugin_name, plugin_class in plugins.items():
+                status = "✅ Default" if plugin_name == default_plugin else "Available"
 
-    if results["warnings"]:
-        console.print(
-            f"\n[bold yellow]Warnings ({len(results['warnings'])}):[/bold yellow]"
-        )
-        for warning in results["warnings"]:
-            console.print(f"  [yellow]•[/yellow] {warning}")
+                # Try to get plugin description
+                try:
+                    description = plugin_class.__doc__ or "No description available"
+                    if description:
+                        description = description.split("\n")[0].strip()
+                except Exception:  # pylint: disable=broad-exception-caught
+                    description = "No description available"
 
-    raise typer.Exit(0 if results["success"] else 1)
+                plugin_table.add_row(plugin_name, status, description)
+
+            app_console.print(plugin_table)
+        else:
+            app_console.print("  [red]No plugins found[/red]")
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        app_logger.exception("Error loading plugins")
+        app_console.print(f"  [red]Error loading plugins: {e}[/red]")
+
+    # Configuration details (verbose mode) - use global verbose option
+    if verbose:
+        app_console.print()
+        app_console.print("⚙️  Configuration Details")
+
+        config_table = Table(show_header=False, box=None, padding=(0, 1))
+        config_table.add_column("Setting", style="cyan", min_width=25)
+        config_table.add_column("Value", style="white")
+
+        # Show Python path info
+        package_path = Path(hornet_flow.__file__).parent
+        config_table.add_row("Package Location", str(package_path))
+
+        # Show plugin directory
+        plugin_dir = package_path / "plugins"
+        config_table.add_row("Plugin Directory", str(plugin_dir))
+        config_table.add_row("Plugin Directory Exists", str(plugin_dir.exists()))
+
+        # Show temp directory
+        temp_dir = tempfile.gettempdir()
+        config_table.add_row("Temp Directory", temp_dir)
+
+        app_console.print(config_table)
+
+        # Show environment variables if relevant
+        app_console.print()
+        app_console.print("🌍 Environment")
+        env_table = Table(show_header=False, box=None, padding=(0, 1))
+        env_table.add_column("Variable", style="cyan", min_width=25)
+        env_table.add_column("Value", style="dim")
+
+        # Check for relevant environment variables
+        env_vars = ["HOME", "TMPDIR", "PATH"]
+        for var in env_vars:
+            value = os.environ.get(var, "Not set")
+            # Truncate long PATH values
+            if var == "PATH" and len(value) > 60:
+                value = value[:57] + "..."
+            env_table.add_row(var, value)
+
+        app_console.print(env_table)
+
+    app_console.print()
+    app_console.print("💡 Use [cyan]--verbose[/cyan] for more details")
+    app_console.print("💡 Use [cyan]hornet-flow --help[/cyan] to see all commands")
+    app_console.print()
+
+
+# Add sub-apps to main app
+app.add_typer(workflow_app, name="workflow")
+app.add_typer(repo_app, name="repo")
+app.add_typer(manifest_app, name="manifest")
+app.add_typer(cad_app, name="cad")
+
+# Register commands with their respective sub-apps
+workflow_app.command("run")(workflow_run_cmd)
+workflow_app.command("watch")(workflow_watch_cmd)
+repo_app.command("clone")(repo_clone_cmd)
+manifest_app.command("validate")(manifest_validate_cmd)
+manifest_app.command("show")(manifest_show_cmd)
+cad_app.command("load")(cad_load_cmd)
+
+
+if __name__ == "__main__":
+    app()

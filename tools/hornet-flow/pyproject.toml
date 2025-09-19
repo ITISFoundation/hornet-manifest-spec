@@ -1,6 +1,6 @@
 [project]
 name = "hornet-flow"
-version = "0.1.0"
+version = "0.2.0"
 description = "`hornet-flow` is a Python package for consuming GitHub repositories containing **Hornet manifest files**. It parses manifests, loads CAD models, and configures simulation environments, enabling a smooth flow from repository to simulation."
 readme = "README.md"
 authors = [
@@ -11,6 +11,7 @@ dependencies = [
     "httpx",
     "jsonschema",
     "typer>=0.14",
+    "watchfiles",
 ]
 
 [dependency-groups]
@@ -42,3 +43,10 @@ select = ["I"]  # enable isort rules
 isort.known-first-party = ["hornet_flow"]  # adjust to your own package
 isort.known-third-party = ["pydantic"]
 isort.combine-as-imports = true
+
+
+[tool.pytest.ini_options]
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "integration: tests against repose with external manifests",
+]

@@ -1,22 +1,9 @@
 .PHONY: help test test-unit test-integration lint clean clean-venv install install-dev install-lint install-all install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
 
 # Default target
-help:
+help:  ## Show this help message
 	@echo "Available targets:"
-	@echo "  install-uv      - Install uv package manager"
-	@echo "  venv            - Create virtual environment"
-	@echo "  test            - Run all tests"
-	@echo "  test-unit       - Run unit tests only"
-	@echo "  test-integration- Run integration tests only"
-	@echo "  lint            - Run code linting"
-	@echo "  clean           - Clean up temporary files"
-	@echo "  clean-venv      - Remove virtual environment"
-	@echo "  install         - Install package in editable mode"
-	@echo "  install-dev     - Install dev dependency group"
-	@echo "  install-lint    - Install lint dependency group"
-	@echo "  install-all     - Install all dependency groups"
-	@echo "  run-example     - Run loader with example metadata"
-	@echo "  run-dry         - Run loader in dry-run mode"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 # Install uv
 install-uv:
@@ -35,22 +22,22 @@ venv: check-deps
 	fi
 
 # Test targets
-test:
+test:  ## Run tests
 	@echo "Running all tests..."
-	uv run pytest test.py -v
+	uv run pytest -v test.py
 
 test-unit:
 	@echo "Running unit tests..."
-	uv run pytest test.py -v -k "not integration"
+	uv run pytest test.py -v -k "not integration" .
 
-test-integration:
+test-integration:  ## Run integration tests
 	@echo "Running integration tests..."
-	uv run pytest test.py -v -k "integration"
+	uv run pytest -v -k "integration"
 
-lint:
+lint:  ## Run linting
 	@echo "Running code linting..."
-	uv run ruff check src/ test.py
-	uv run ruff format --check src/ test.py
+	uv run ruff check .
+	uv run ruff format --check .
 
 
 # Dependencies
@@ -71,23 +58,33 @@ install-all: venv
 	@echo "Installing all dependency groups..."
 	uv sync --all-groups
 
-# Example runs
+# Example runs for manual testing
 run-example:
-	@echo "Running loader with example metadata..."
-	uv run hornet-flow examples/portal-device-metadata.json --work-dir /tmp/hornet-flow -v
+	@echo "Running workflow with example metadata..."
+	hornet-flow workflow run --metadata-file examples/portal-device-metadata.json --work-dir /tmp/hornet-flow --verbose
 
-run-dry:
-	@echo "Running loader in dry-run mode..."
-	uv run hornet-flow examples/portal-device-metadata.json --work-dir /tmp/hornet-flow --dry-run -v
+run-clone-example:
+	@echo "Running repo clone example..."
+	mkdir -p /tmp/hornet-electrodes
+	hornet-flow repo clone --repo-url https://github.com/COSMIIC-Inc/Implantables-Electrodes --dest /tmp/hornet-electrodes --verbose
+
+run-validate-example:
+	@echo "Running manifest validation example..."
+	hornet-flow manifest validate --repo-path /tmp/hornet-electrodes --verbose
+
+run-show-example:
+	@echo "Running manifest show example..."
+	hornet-flow manifest show --repo-path /tmp/hornet-electrodes --type cad --verbose --quiet
 
 
 # Utility targets
-clean:
+clean:  ## Clean up temporary files
 	@echo "Cleaning up temporary files..."
+	rm -rf build/
+	rm -rf dist/
+	rm -rf *.egg-info/
+	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-	rm -rf /tmp/hornet*
 
 clean-venv:
 	@echo "Removing virtual environment..."
@@ -117,3 +114,63 @@ dev-setup: check-deps venv install-all validate-code test
 # CI-like workflow
 ci: check-deps venv install-lint validate-code lint test
 	@echo "✓ CI checks passed"
+
+# Demo and testing targets
+.PHONY: demo-watch
+demo-watch:  ## Demo the workflow watch command (creates temp dirs and runs watcher)
+	@echo "🚀 Setting up demo environment for workflow watch..."
+	@mkdir -p /tmp/hornet-demo/{inputs,work}
+	@echo "📁 Created directories:"
+	@echo "   - Inputs: /tmp/hornet-demo/inputs"
+	@echo "   - Work:   /tmp/hornet-demo/work"
+	@echo ""
+	@echo "🔧 Starting workflow watcher in single-file mode..."
+	@echo "💡 In another terminal, copy a metadata.json file to /tmp/hornet-demo/inputs/"
+	@echo "   Example: cp examples/portal-device-metadata.json /tmp/hornet-demo/inputs/metadata.json"
+	@echo ""
+	@echo "⚡ Starting watcher (Ctrl+C to stop)..."
+	INPUTS_DIR=/tmp/hornet-demo/inputs WORK_DIR=/tmp/hornet-demo/work \
+		uv run hornet-flow workflow watch --once --verbose
+
+.PHONY: demo-watch-continuous
+demo-watch-continuous:  ## Demo continuous workflow watching (runs until stopped)
+	@echo "🚀 Setting up demo environment for continuous workflow watch..."
+	@mkdir -p /tmp/hornet-demo/{inputs,work}
+	@echo "📁 Created directories:"
+	@echo "   - Inputs: /tmp/hornet-demo/inputs"
+	@echo "   - Work:   /tmp/hornet-demo/work"
+	@echo ""
+	@echo "🔧 Starting continuous workflow watcher..."
+	@echo "💡 In another terminal, copy metadata.json files to /tmp/hornet-demo/inputs/"
+	@echo "   Each file will be processed automatically"
+	@echo ""
+	@echo "⚡ Starting watcher (Ctrl+C to stop)..."
+	INPUTS_DIR=/tmp/hornet-demo/inputs WORK_DIR=/tmp/hornet-demo/work \
+		uv run hornet-flow workflow watch --verbose
+
+.PHONY: test-metadata
+test-metadata:  ## Create test metadata file for demo
+	@echo "📄 Creating test metadata.json file..."
+	@mkdir -p /tmp/hornet-demo/inputs
+	@cp examples/portal-device-metadata.json /tmp/hornet-demo/inputs/metadata.json
+	@echo "✅ Created /tmp/hornet-demo/inputs/metadata.json"
+	@echo "💡 Run 'make demo-watch' to process it"
+
+.PHONY: clean-demo
+clean-demo:  ## Clean up demo directories
+	@echo "🧹 Cleaning up demo directories..."
+	@rm -rf /tmp/hornet-demo
+	@echo "✅ Demo directories cleaned"
+
+# Build and install targets
+.PHONY: build
+build:  ## Build the package
+	uv build
+
+.PHONY: install-dev
+install-dev:  ## Install in development mode
+	uv pip install -e .
+
+.PHONY: install-from-git
+install-from-git:  ## Install from git repository
+	uv pip install "git+https://github.com/ITISFoundation/hornet-manifest-spec.git@main#subdirectory=tools/hornet-flow"
