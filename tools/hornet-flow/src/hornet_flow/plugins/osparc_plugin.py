@@ -167,35 +167,7 @@ class OSparcPlugin(HornetFlowPlugin):
             )
             component_group.SetDescription("hornet.component_type", component_type)
 
-            # 3. Load component trying at least one of the provided files
-            self._logger.debug("Importing files for component %s", component_id)
-            is_file_imported = False
-            for component_path in component_files:
-                try:
-                    imported_entities = XCoreModeling.Import(str(component_path))
-
-                except Exception:  # pylint: disable=broad-exception-caught
-                    self._logger.warning(
-                        "Cannot import %s, let's check next ...", component_path
-                    )
-
-                else:
-                    component_group.Add(imported_entities)
-
-                    self._logger.debug(
-                        "Successfully imported component %s from %s",
-                        component_id,
-                        component_path,
-                    )
-                    is_file_imported = True
-                    break
-
-            if not is_file_imported:
-                raise FileNotFoundError(
-                    f"No valid files could be loaded for component '{component_id}'"
-                )
-
-            # 4. Add component_group to main group or parent group
+            # 3. Add component_group to main group or parent group
             self._logger.debug("Adding component %s to model hierarchy", component_id)
             assert self._main_group  # nosec
             parent_group = self._main_group
@@ -226,6 +198,35 @@ class OSparcPlugin(HornetFlowPlugin):
                 parent_group.Name,
                 component_parent_path,
             )
+
+            # 4. Load component trying at least one of the provided files
+            self._logger.debug("Importing files for component %s", component_id)
+            is_file_imported = False
+            for component_path in component_files:
+                try:
+                    imported_entities = XCoreModeling.Import(str(component_path))
+
+                except Exception:  # pylint: disable=broad-exception-caught
+                    self._logger.warning(
+                        "Cannot import %s, let's check next ...", component_path
+                    )
+
+                else:
+                    component_group.Add(imported_entities)
+
+                    self._logger.debug(
+                        "Successfully imported component %s from %s",
+                        component_id,
+                        component_path,
+                    )
+                    is_file_imported = True
+                    break
+
+            if not is_file_imported:
+                # NOTE: the group will be empty but still there
+                raise FileNotFoundError(
+                    f"No valid files could be loaded for component '{component_id}'"
+                )
 
             self._loaded_groups.append(component_group)
 
