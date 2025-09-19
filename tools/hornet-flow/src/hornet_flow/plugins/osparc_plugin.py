@@ -133,9 +133,10 @@ class OSparcPlugin(HornetFlowPlugin):
         self._manifest_path = manifest_path
 
         # setup lifespan contexts
-        app = self._stack.enter_context(_app_lifespan(self._logger))
-        self._stack.enter_context(_app_document_lifespan(self._logger, app, repo_path))
-
+        console_app = self._stack.enter_context(_app_lifespan(self._logger))
+        self._stack.enter_context(
+            _app_document_lifespan(self._logger, console_app, repo_path)
+        )
         self._main_group = self._stack.enter_context(
             _app_document_main_model_group_lifespan(
                 self._logger,
