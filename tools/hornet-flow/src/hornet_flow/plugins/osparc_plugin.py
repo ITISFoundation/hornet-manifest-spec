@@ -152,7 +152,7 @@ class OSparcPlugin(HornetFlowPlugin):
         component_type: str,
         component_description: Optional[str],
         component_files: list[Path],  # these are verified paths!!
-        component_parent_id: list[str],
+        component_parent_path: list[str],
     ) -> bool:
         """Load component into OSparc."""
         try:
@@ -163,12 +163,15 @@ class OSparcPlugin(HornetFlowPlugin):
             # 2. Save metadata in Group name Properties
             self._logger.debug("Saving metadata for component %s", component_id)
             component_group.SetDescription("hornet.description", component_description)
-            component_group.SetDescription("hornet.component_id", component_id)
+            component_group.SetDescription(
+                # NOTE: Used for parent lookup
+                "hornet.component_id",
+                component_id,
+            )
             component_group.SetDescription("hornet.component_type", component_type)
-            # TODO: add all headers of manifest or even the entire manifest as JSON?
-            # TODO: add sim manifest info on the component
 
             # 3. Load component trying at least one of the provided files
+            self._logger.debug("Importing files for component %s", component_id)
             is_file_imported = False
             for component_path in component_files:
                 try:
@@ -196,33 +199,35 @@ class OSparcPlugin(HornetFlowPlugin):
                 )
 
             # 4. Add component_group to main group or parent group
+            self._logger.debug("Adding component %s to model hierarchy", component_id)
             assert self._main_group  # nosec
+            parent_group = self._main_group
+            if component_parent_path:
+                # Search for parent group in loaded groups
+                parent_component_id = (
+                    component_parent_path[-1] if component_parent_path else None
+                )
+                found = XCoreModeling.GetActiveModel().FindEntities(
+                    lambda e: e.GetDescription("hornet.component_id")
+                    == parent_component_id
+                )
+                if len(found) == 1:
+                    parent_group = found[0]
 
-            if not component_parent_id:
-                self._main_group.Add(component_group)
-                return True
-
-            # Search for parent group in loaded groups
-            # TODO: search in tree by path, not just last id
-            parent_component_id = (
-                component_parent_id[-1] if component_parent_id else None
-            )
-            parent_group = next(
-                (
-                    grp
-                    for grp in self._loaded_groups
-                    if grp.GetDescription("hornet.component_id") == parent_component_id
-                ),
-                None,
-            )
-            if not parent_group:
-                parent_group = self._main_group
+                if parent_group is None:
+                    self._logger.warning(
+                        "Parent group with component_id '%s' not found, assigning to main group. [component_parent_path=%s]",
+                        parent_component_id,
+                        component_parent_path,
+                    )
+                    parent_group = self._main_group
 
             parent_group.Add(component_group)
             self._logger.debug(
-                "Added group '%s' to parent group '%s'",
+                "Added group '%s' to parent group '%s' [component_parent_path=%s]",
                 component_group.Name,
                 parent_group.Name,
+                component_parent_path,
             )
 
             self._loaded_groups.append(component_group)
@@ -235,6 +240,7 @@ class OSparcPlugin(HornetFlowPlugin):
 
     def teardown(self) -> None:
         """Clean up OSparc resources."""
+        self._logger.info("Loaded %d groups", len(self._loaded_groups))
         self._stack.close()
 
         # Reset state
