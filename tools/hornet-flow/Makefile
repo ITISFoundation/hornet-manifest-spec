@@ -1,9 +1,6 @@
-.PHONY: help test test-unit test-integration lint clean clean-venv install install-dev install-lint install-all install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
+include ../common.mk
 
-# Default target
-help:  ## Show this help message
-	@echo "Available targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+.PHONY: test test-unit test-integration lint clean clean-venv install install-dev install-lint install-all install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
 
 # Install uv
 install-uv:
@@ -78,13 +75,10 @@ run-show-example:
 
 
 # Utility targets
-clean:  ## Clean up temporary files
-	@echo "Cleaning up temporary files..."
-	rm -rf build/
-	rm -rf dist/
-	rm -rf *.egg-info/
-	find . -type d -name __pycache__ -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
+# Clean files based on .gitignore (safe - only removes ignored files)
+# Removes files and directories ignored by git, but leaves untracked files
+clean: ## Clean files based on .gitignore (safe - only removes ignored files)
+	@$(MAKE) -f ../common.mk clean_common
 
 clean-venv:
 	@echo "Removing virtual environment..."
