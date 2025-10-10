@@ -1,6 +1,6 @@
 # hornet-flow
 
-A CLI tool for loading and processing hornet manifests from git repositories.
+A CLI tool for loading and processing hornet manifests from git repositories. It offers both a command line (CLI) and a programatic interfaces (API)
 
 ## Installation
 
@@ -8,9 +8,9 @@ A CLI tool for loading and processing hornet manifests from git repositories.
 uv pip install "git+https://github.com/ITISFoundation/hornet-manifest-spec.git@main#subdirectory=tools/hornet-flow"
 ```
 
-## Usage
+## CLI Usage
 
-### Basic Commands
+### Basic Commands 
 
 ```bash
 # Show help
@@ -270,6 +270,153 @@ hornet-flow manifest validate \
   --quiet
 ```
 
+## Programmatic API Usage
+
+In addition to the CLI, hornet-flow provides a clean programmatic API for integration into other applications:
+
+### Class-based API (Recommended)
+
+```python
+from hornet_flow.api import HornetFlowAPI
+
+# Create API instance
+api = HornetFlowAPI()
+
+# Workflow operations
+success_count, total_count = api.workflow.run(
+    repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+    plugin="osparc",
+    fail_fast=True
+)
+
+# Repository operations
+repo_path = api.repo.clone(
+    repo_url="https://github.com/CARSSCenter/Sub-mm-Parylene-Cuff-Electrode",
+    dest="/tmp/my-repo",
+    commit="main"
+)
+
+# Manifest operations
+cad_valid, sim_valid = api.manifest.validate("/path/to/repo")
+manifest_data = api.manifest.show("/path/to/repo", manifest_type="cad")
+
+# CAD operations
+success_count, total_count = api.cad.load(
+    repo_path="/path/to/repo",
+    plugin="debug",
+    type_filter="assembly"
+)
+```
+
+### Function-based API (Backward Compatibility)
+
+```python
+from hornet_flow.api import (
+    run_workflow_api,
+    clone_repository_api,
+    validate_manifests_api,
+    show_manifest_api,
+    load_cad_api
+)
+
+# Same functionality as class-based API
+success_count, total_count = run_workflow_api(
+    repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+    plugin="osparc"
+)
+
+repo_path = clone_repository_api(
+    repo_url="https://github.com/example/repo",
+    dest="/tmp/repo"
+)
+```
+
+### API Examples
+
+**Complete workflow with error handling:**
+```python
+from hornet_flow.api import HornetFlowAPI
+from hornet_flow.exceptions import ApiProcessingError, ApiValidationError
+
+api = HornetFlowAPI()
+
+try:
+    # Clone repository
+    repo_path = api.repo.clone(
+        repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+        dest="/tmp/electrodes"
+    )
+    
+    # Validate manifests
+    cad_valid, sim_valid = api.manifest.validate(str(repo_path))
+    print(f"CAD valid: {cad_valid}, SIM valid: {sim_valid}")
+    
+    # Run workflow
+    success_count, total_count = api.workflow.run(
+        repo_path=str(repo_path),
+        plugin="osparc",
+        fail_fast=True
+    )
+    
+    print(f"Processed {success_count}/{total_count} components")
+    
+except ApiValidationError as e:
+    print(f"Validation failed: {e}")
+except ApiProcessingError as e:
+    print(f"Processing failed: {e}")
+```
+
+**Batch processing multiple repositories:**
+```python
+from hornet_flow.api import HornetFlowAPI
+
+api = HornetFlowAPI()
+
+repositories = [
+    "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+    "https://github.com/CARSSCenter/Sub-mm-Parylene-Cuff-Electrode"
+]
+
+for repo_url in repositories:
+    try:
+        # Process each repository
+        success_count, total_count = api.workflow.run(
+            repo_url=repo_url,
+            plugin="debug",
+            work_dir="/tmp/batch-processing"
+        )
+        print(f"{repo_url}: {success_count}/{total_count} components processed")
+    except Exception as e:
+        print(f"Failed to process {repo_url}: {e}")
+```
+
+**Working with existing repositories:**
+```python
+from hornet_flow.api import HornetFlowAPI
+
+api = HornetFlowAPI()
+
+# Show manifest contents
+manifest_data = api.manifest.show("/path/to/local/repo", manifest_type="both")
+
+if "cad" in manifest_data:
+    print("CAD Manifest:")
+    print(manifest_data["cad"])
+
+if "sim" in manifest_data:
+    print("SIM Manifest:")
+    print(manifest_data["sim"])
+
+# Load CAD files with filtering
+success_count, total_count = api.cad.load(
+    repo_path="/path/to/local/repo",
+    plugin="osparc",
+    type_filter="assembly",
+    name_filter="electrode"
+)
+```
+
+
 ## Development
 
 See the Makefile for development commands:
@@ -280,3 +427,7 @@ make install-all    # Install all dependencies
 make test          # Run tests
 make lint          # Run linting
 ```
+
+
+
+
