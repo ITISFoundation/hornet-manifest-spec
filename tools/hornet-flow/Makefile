@@ -1,6 +1,6 @@
-include ../common.mk
+include ../../common.mk
 
-.PHONY: test test-unit test-integration lint clean clean-venv install install-dev install-lint install-all install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
+.PHONY: test test-unit test-integration lint clean clean-venv install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
 
 # Install uv
 install-uv:
@@ -17,6 +17,35 @@ venv: check-deps
 	else \
 		echo "✓ Virtual environment already exists"; \
 	fi
+
+# Install and build
+.PHONY: install install-dev install-from-git install-lint install-all
+install: venv
+	@echo "Installing package in editable mode with dependencies..."
+	uv sync
+	@echo "✓ Package installed in editable mode"
+
+install-dev: venv
+	@echo "Installing dev dependency group..."
+	uv sync --group dev
+
+
+install-from-git:  ## Install from git repository
+	uv pip install "git+https://github.com/ITISFoundation/hornet-manifest-spec.git@main#subdirectory=tools/hornet-flow"
+
+install-lint: venv
+	@echo "Installing lint dependency group..."
+	uv sync --group lint
+
+install-all: venv
+	@echo "Installing all dependency groups..."
+	uv sync --all-groups
+
+
+.PHONY: build
+build:  ## Build the package
+	uv build
+
 
 # Test targets
 test:  ## Run tests
@@ -35,25 +64,6 @@ lint:  ## Run linting
 	@echo "Running code linting..."
 	uv run ruff check .
 	uv run ruff format --check .
-
-
-# Dependencies
-install: venv
-	@echo "Installing package in editable mode with dependencies..."
-	uv sync
-	@echo "✓ Package installed in editable mode"
-
-install-dev: venv
-	@echo "Installing dev dependency group..."
-	uv sync --group dev
-
-install-lint: venv
-	@echo "Installing lint dependency group..."
-	uv sync --group lint
-
-install-all: venv
-	@echo "Installing all dependency groups..."
-	uv sync --all-groups
 
 # Example runs for manual testing
 run-example:
@@ -156,15 +166,3 @@ clean-demo:  ## Clean up demo directories
 	@rm -rf /tmp/hornet-demo
 	@echo "✅ Demo directories cleaned"
 
-# Build and install targets
-.PHONY: build
-build:  ## Build the package
-	uv build
-
-.PHONY: install-dev
-install-dev:  ## Install in development mode
-	uv pip install -e .
-
-.PHONY: install-from-git
-install-from-git:  ## Install from git repository
-	uv pip install "git+https://github.com/ITISFoundation/hornet-manifest-spec.git@main#subdirectory=tools/hornet-flow"
