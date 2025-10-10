@@ -22,6 +22,7 @@ from .exceptions import (
 from .model import Release
 from .services import git_service, manifest_service, workflow_service
 from .services.processor import ManifestProcessor
+from .services.watcher import watch_for_metadata
 
 _logger = logging.getLogger(__name__)
 
@@ -84,6 +85,46 @@ class WorkflowAPI:
             raise ApiProcessingError(str(e)) from e
         except subprocess.CalledProcessError as e:
             raise _create_processing_error(e, "workflow operation") from e
+
+    def watch(
+        self,
+        inputs_dir: str,
+        work_dir: str,
+        once: bool = False,
+        plugin: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        name_filter: Optional[str] = None,
+        fail_fast: bool = False,
+        stability_seconds: float = 2.0,
+    ) -> None:
+        """Watch for metadata.json files and automatically process them."""
+        try:
+            inputs_path = Path(inputs_dir).resolve()
+            work_path = Path(work_dir).resolve()
+            
+            # Validate inputs directory exists
+            if not inputs_path.exists():
+                raise ApiFileNotFoundError(f"Inputs directory does not exist: {inputs_path}")
+            
+            if not inputs_path.is_dir():
+                raise ApiInputValueError(f"Inputs path is not a directory: {inputs_path}")
+            
+            watch_for_metadata(
+                inputs_dir=inputs_path,
+                work_dir=work_path,
+                once=once,
+                plugin=plugin,
+                type_filter=type_filter,
+                name_filter=name_filter,
+                fail_fast=fail_fast,
+                stability_seconds=stability_seconds,
+            )
+        except ValueError as e:
+            raise ApiInputValueError(str(e)) from e
+        except FileNotFoundError as e:
+            raise ApiFileNotFoundError(str(e)) from e
+        except RuntimeError as e:
+            raise ApiProcessingError(str(e)) from e
 
 
 class RepoAPI:
@@ -368,3 +409,20 @@ def load_cad_api(
     """Load CAD files referenced in the manifest using plugins - pure API function."""
     api = HornetFlowAPI()
     return api.cad.load(repo_path, plugin, type_filter, name_filter, fail_fast)
+
+
+def workflow_watch_api(
+    inputs_dir: str,
+    work_dir: str,
+    once: bool = False,
+    plugin: Optional[str] = None,
+    type_filter: Optional[str] = None,
+    name_filter: Optional[str] = None,
+    fail_fast: bool = False,
+    stability_seconds: float = 2.0,
+) -> None:
+    """Watch for metadata.json files and automatically process them - pure API function."""
+    api = HornetFlowAPI()
+    return api.workflow.watch(
+        inputs_dir, work_dir, once, plugin, type_filter, name_filter, fail_fast, stability_seconds
+    )

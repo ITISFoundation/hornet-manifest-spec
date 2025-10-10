@@ -19,10 +19,10 @@ from .api import (
     run_workflow_api,
     show_manifest_api,
     validate_manifests_api,
+    workflow_watch_api,
 )
 from .cli_exceptions import handle_command_errors
 from .cli_state import app_console, app_logger, merge_global_options
-from .services.watcher import watch_for_metadata
 
 # Type aliases for options repeated more than once
 VerboseOption = Annotated[
@@ -371,28 +371,18 @@ def workflow_watch_cmd(
 
     app_logger.info("👀 Starting metadata file watcher")
 
-    # Validate and prepare directories
-    inputs_path = Path(inputs_dir).resolve()
-
     # Create work_dir/hornet-flows structure
     work_base = Path(work_dir).resolve()
     work_path = work_base / "hornet-flows"
 
-    app_logger.info("📁 Inputs directory: %s", inputs_path)
+    app_logger.info("📁 Inputs directory: %s", inputs_dir)
     app_logger.info("📁 Work directory: %s", work_path)
 
-    # Validate inputs directory exists
-    if not inputs_path.exists():
-        raise typer.BadParameter(f"Inputs directory does not exist: {inputs_path}")
-
-    if not inputs_path.is_dir():
-        raise typer.BadParameter(f"Inputs path is not a directory: {inputs_path}")
-
-    # Call the watcher function
+    # Call the API function
     try:
-        watch_for_metadata(
-            inputs_dir=inputs_path,
-            work_dir=work_path,
+        workflow_watch_api(
+            inputs_dir=inputs_dir,
+            work_dir=str(work_path),
             once=once,
             plugin=plugin,
             type_filter=type_filter,
