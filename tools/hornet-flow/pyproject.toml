@@ -16,7 +16,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-  "pytest"
+  "pyright>=1.1.406",
+  "pytest",
 ]
 lint = [
   "ruff"

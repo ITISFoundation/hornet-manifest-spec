@@ -1,8 +1,12 @@
 include ../../common.mk
 
+# Directory variables
+TYPINGS_DIR := typings
+DIST_STUBS_DIR := dist/type-stubs
+
 .PHONY: test test-unit test-integration lint clean clean-venv install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
 
-install-uv: 
+install-uv:
 	@echo "Installing uv..."
 	@curl -LsSf https://astral.sh/uv/install.sh | sh
 	@echo "✓ uv installed. You may need to restart your shell or run 'source ~/.bashrc'"
@@ -42,11 +46,30 @@ install-all: venv
 	@echo "Installing all dependency groups..."
 	uv sync --all-groups
 
+install-types: venv
+	@echo "Installing typing dependencies..."
+	uv add --group dev pyright
+
 
 .PHONY: build
 build:  ## Build the package
 	uv build
 
+.PHONY: type-stubs type-stubs-package
+type-stubs: install-types ## Generate type stubs (.pyi files)
+	@echo "Generating type stubs with pyright..."
+	uv run pyright --createstub hornet_flow
+	@echo "✓ Type stubs generated in $(TYPINGS_DIR)/ directory"
+
+type-stubs-package: type-stubs ## Package type stubs for distribution
+	@echo "Creating type stubs package..."
+	@mkdir -p $(DIST_STUBS_DIR)
+	@cp -r $(TYPINGS_DIR)/hornet_flow $(DIST_STUBS_DIR)/
+	@echo "Creating py.typed marker file..."
+	@touch $(DIST_STUBS_DIR)/hornet_flow/py.typed
+	@echo "Creating __init__.py for stubs package..."
+	@echo "# Type stubs for hornet-flow" > $(DIST_STUBS_DIR)/hornet_flow/__init__.pyi
+	@echo "✓ Type stubs packaged in $(DIST_STUBS_DIR)/"
 
 # Test targets
 test:  ## Run tests
@@ -90,6 +113,9 @@ run-show-example:
 # Removes files and directories ignored by git, but leaves untracked files
 clean: ## Clean files based on .gitignore (safe - only removes ignored files)
 	@$(MAKE) -f ../common.mk clean_common
+	@echo "Cleaning type stubs..."
+	@rm -rf $(TYPINGS_DIR)/ $(DIST_STUBS_DIR)/
+	@echo "✓ Type stubs cleaned"
 
 clean-venv:
 	@echo "Removing virtual environment..."
