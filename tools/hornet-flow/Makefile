@@ -2,14 +2,14 @@ include ../../common.mk
 
 .PHONY: test test-unit test-integration lint clean clean-venv install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
 
-# Install uv
-install-uv:
+install-uv: 
 	@echo "Installing uv..."
 	@curl -LsSf https://astral.sh/uv/install.sh | sh
 	@echo "✓ uv installed. You may need to restart your shell or run 'source ~/.bashrc'"
 
+
 # Virtual environment
-venv: check-deps
+venv: check-deps ## Creates virtual env in .venv
 	@echo "Creating virtual environment..."
 	@if [ ! -d ".venv" ]; then \
 		uv venv; \
@@ -20,17 +20,18 @@ venv: check-deps
 
 # Install and build
 .PHONY: install install-dev install-from-git install-lint install-all
+
 install: venv
 	@echo "Installing package in editable mode with dependencies..."
 	uv sync
 	@echo "✓ Package installed in editable mode"
 
-install-dev: venv
+install-dev: venv ## Install from local repository
 	@echo "Installing dev dependency group..."
 	uv sync --group dev
 
 
-install-from-git:  ## Install from git repository
+install-from-git:  ## Install from remote gh repository
 	uv pip install "git+https://github.com/ITISFoundation/hornet-manifest-spec.git@main#subdirectory=tools/hornet-flow"
 
 install-lint: venv
@@ -111,9 +112,8 @@ test-coverage:
 	@echo "Running tests with coverage..."
 	uv run --with pytest-cov --with pytest-mock pytest test.py --cov=src/hornet_flow --cov-report=html --cov-report=term
 
-# Full development workflow
-dev-setup: check-deps venv install-all validate-code test
-	@echo "✓ Development setup complete"
+dev-flow: check-deps venv install-all validate-code test ## runs full development workflow
+	@echo "✓ Development workflow complete"
 
 # CI-like workflow
 ci: check-deps venv install-lint validate-code lint test
@@ -165,4 +165,3 @@ clean-demo:  ## Clean up demo directories
 	@echo "🧹 Cleaning up demo directories..."
 	@rm -rf /tmp/hornet-demo
 	@echo "✅ Demo directories cleaned"
-
