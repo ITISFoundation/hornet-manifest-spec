@@ -2,7 +2,7 @@ include ../../common.mk
 
 # Directory variables
 TYPINGS_DIR := typings
-DIST_STUBS_DIR := dist/type-stubs
+DIST_DIR := dist
 
 .PHONY: test test-unit test-integration lint clean clean-venv install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
 
@@ -53,23 +53,23 @@ install-types: venv
 
 .PHONY: build
 build:  ## Build the package
-	uv build
+	uv build --out-dir $(DIST_DIR)
 
 .PHONY: type-stubs type-stubs-package
-type-stubs: install-types ## Generate type stubs (.pyi files)
+type-stubs: install-types
 	@echo "Generating type stubs with pyright..."
 	uv run pyright --createstub hornet_flow
 	@echo "✓ Type stubs generated in $(TYPINGS_DIR)/ directory"
 
-type-stubs-package: type-stubs ## Package type stubs for distribution
-	@echo "Creating type stubs package..."
-	@mkdir -p $(DIST_STUBS_DIR)
-	@cp -r $(TYPINGS_DIR)/hornet_flow $(DIST_STUBS_DIR)/
+build-type-stubs: type-stubs ## Package type stubs for distribution
+	@echo "Creating typeshed-style package..."
+	@mkdir -p $(DIST_DIR)/types-hornet-flow
+	@cp -r $(TYPINGS_DIR)/hornet_flow $(DIST_DIR)/types-hornet-flow/
 	@echo "Creating py.typed marker file..."
-	@touch $(DIST_STUBS_DIR)/hornet_flow/py.typed
-	@echo "Creating __init__.py for stubs package..."
-	@echo "# Type stubs for hornet-flow" > $(DIST_STUBS_DIR)/hornet_flow/__init__.pyi
-	@echo "✓ Type stubs packaged in $(DIST_STUBS_DIR)/"
+	@touch $(DIST_DIR)/types-hornet-flow/hornet_flow/py.typed
+	@echo "Creating package metadata..."
+	@echo "# Types package for hornet-flow" > $(DIST_DIR)/types-hornet-flow/__init__.py
+	@echo "✓ Type stubs packaged as types-hornet-flow in $(DIST_DIR)/"
 
 # Test targets
 test:  ## Run tests
@@ -114,7 +114,7 @@ run-show-example:
 clean: ## Clean files based on .gitignore (safe - only removes ignored files)
 	@$(MAKE) -f ../common.mk clean_common
 	@echo "Cleaning type stubs..."
-	@rm -rf $(TYPINGS_DIR)/ $(DIST_STUBS_DIR)/
+	@rm -rf $(TYPINGS_DIR)/ $(DIST_DIR)/
 	@echo "✓ Type stubs cleaned"
 
 clean-venv:
