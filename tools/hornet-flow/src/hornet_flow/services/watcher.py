@@ -50,6 +50,7 @@ def _process_metadata_file(
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
     fail_fast: bool = False,
+    event_dispatcher: Optional[workflow_service.EventDispatcher] = None,
 ) -> tuple[int, int]:
     """Process a metadata file using the workflow service.
 
@@ -60,6 +61,7 @@ def _process_metadata_file(
         type_filter: Filter components by type
         name_filter: Filter components by name
         fail_fast: Stop on first error
+        event_dispatcher: Optional event dispatcher for workflow events
 
     Returns:
         Tuple of (success_count, total_count)
@@ -80,6 +82,7 @@ def _process_metadata_file(
         type_filter=type_filter,
         name_filter=name_filter,
         fail_fast=fail_fast,
+        event_dispatcher=event_dispatcher,
     )
 
 
@@ -92,6 +95,7 @@ def watch_for_metadata(
     name_filter: Optional[str] = None,
     fail_fast: bool = False,
     stability_seconds: float = 2.0,
+    event_dispatcher: Optional[workflow_service.EventDispatcher] = None,
 ) -> None:
     """Watch for metadata.json files and process them.
 
@@ -104,6 +108,7 @@ def watch_for_metadata(
         name_filter: Filter components by name
         fail_fast: Stop on first error
         stability_seconds: How long to wait for file stability
+        event_dispatcher: Optional event dispatcher for workflow events
 
     Raises:
         FileNotFoundError: If inputs_dir doesn't exist
@@ -161,6 +166,7 @@ def watch_for_metadata(
                         type_filter=type_filter,
                         name_filter=name_filter,
                         fail_fast=fail_fast,
+                        event_dispatcher=event_dispatcher,
                     )
 
                     _logger.info(
