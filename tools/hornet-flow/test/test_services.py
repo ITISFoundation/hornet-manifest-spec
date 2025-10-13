@@ -6,32 +6,12 @@
 
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
 from hornet_flow import logging_utils, model
 from hornet_flow.services import git_service, manifest_service, metadata_service
-
-_CURRENT_DIR = Path(
-    sys.argv[0] if __name__ == "__main__" else __file__
-).parent.resolve()
-
-
-@pytest.fixture
-def repo_path() -> Path:
-    return _CURRENT_DIR.parent.parent
-
-
-@pytest.fixture
-def package_dir(repo_path: Path) -> Path:
-    return repo_path / "tools" / "hornet_flow"
-
-
-@pytest.fixture
-def schema_dir(package_dir: Path) -> Path:
-    return package_dir / "schema"
 
 
 def test_load_metadata_portal_device():
