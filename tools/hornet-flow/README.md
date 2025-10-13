@@ -10,7 +10,7 @@ uv pip install "git+https://github.com/ITISFoundation/hornet-manifest-spec.git@m
 
 ## CLI Usage
 
-### Basic Commands 
+### Basic Commands
 
 ```bash
 # Show help
@@ -308,6 +308,123 @@ success_count, total_count = api.cad.load(
 )
 ```
 
+### Event System
+
+The API supports an event system that allows you to hook into specific workflow stages:
+
+```python
+from hornet_flow.api import HornetFlowAPI, EventDispatcher, WorkflowEvent
+
+# Create event dispatcher
+dispatcher = EventDispatcher()
+
+# Register callback for before manifest processing
+def check_external_readiness(**kwargs):
+    repo_path = kwargs['repo_path']
+    print(f"Checking external system readiness for repo: {repo_path}")
+
+    # Your custom logic here - e.g., check if external service is ready
+    # You can access: repo_path, cad_manifest, sim_manifest, release
+    cad_manifest = kwargs.get('cad_manifest')
+    sim_manifest = kwargs.get('sim_manifest')
+    release = kwargs.get('release')
+
+    print(f"Found CAD manifest: {cad_manifest}")
+    print(f"Found SIM manifest: {sim_manifest}")
+
+    # Raise an exception to stop the workflow if external system not ready
+    # raise RuntimeError("External system not ready")
+
+# Register the callback
+dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, check_external_readiness)
+
+# Create API instance
+api = HornetFlowAPI()
+
+# Run workflow with event dispatcher
+success_count, total_count = api.workflow.run(
+    repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+    plugin="osparc",
+    event_dispatcher=dispatcher
+)
+```
+
+**Multiple Event Handlers:**
+```python
+from hornet_flow.api import HornetFlowAPI, EventDispatcher, WorkflowEvent
+import requests
+
+dispatcher = EventDispatcher()
+
+# Handler 1: Check external service availability
+def check_service_health(**kwargs):
+    try:
+        response = requests.get("http://external-service/health", timeout=5)
+        if response.status_code != 200:
+            raise RuntimeError("External service is not healthy")
+        print("✓ External service is ready")
+    except requests.RequestException as e:
+        raise RuntimeError(f"Cannot reach external service: {e}")
+
+# Handler 2: Log workflow progress
+def log_workflow_progress(**kwargs):
+    repo_path = kwargs['repo_path']
+    print(f"📋 About to process manifests in: {repo_path}")
+
+# Handler 3: Send notification
+def send_notification(**kwargs):
+    repo_path = kwargs['repo_path']
+    # Send to monitoring system, Slack, etc.
+    print(f"🔔 Starting manifest processing for {repo_path}")
+
+# Register all handlers
+dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, check_service_health)
+dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, log_workflow_progress)
+dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, send_notification)
+
+# Run workflow
+api = HornetFlowAPI()
+success_count, total_count = api.workflow.run(
+    repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+    event_dispatcher=dispatcher
+)
+```
+
+**Conditional Workflow Control:**
+```python
+from hornet_flow.api import HornetFlowAPI, EventDispatcher, WorkflowEvent
+import os
+import time
+
+dispatcher = EventDispatcher()
+
+def wait_for_external_system(**kwargs):
+    """Wait for external system to be ready before processing."""
+    max_attempts = 10
+    attempt = 0
+
+    while attempt < max_attempts:
+        # Check if external system is ready (e.g., file exists, service responds)
+        if os.path.exists("/tmp/external_system_ready.flag"):
+            print("✓ External system is ready, proceeding with manifest processing")
+            return
+
+        attempt += 1
+        print(f"⏳ Waiting for external system... (attempt {attempt}/{max_attempts})")
+        time.sleep(2)
+
+    # If we get here, external system is not ready
+    raise RuntimeError("External system not ready after maximum wait time")
+
+dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, wait_for_external_system)
+
+api = HornetFlowAPI()
+success_count, total_count = api.workflow.run(
+    repo_path="/path/to/repo",
+    event_dispatcher=dispatcher
+)
+```
+
 ### API Examples
 
 **Complete workflow with error handling:**
@@ -323,20 +440,20 @@ try:
         repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
         dest="/tmp/electrodes"
     )
-    
+
     # Validate manifests
     cad_valid, sim_valid = api.manifest.validate(str(repo_path))
     print(f"CAD valid: {cad_valid}, SIM valid: {sim_valid}")
-    
+
     # Run workflow
     success_count, total_count = api.workflow.run(
         repo_path=str(repo_path),
         plugin="osparc",
         fail_fast=True
     )
-    
+
     print(f"Processed {success_count}/{total_count} components")
-    
+
 except ApiValidationError as e:
     print(f"Validation failed: {e}")
 except ApiProcessingError as e:
@@ -367,7 +484,7 @@ try:
         fail_fast=False,
         stability_seconds=3.0
     )
-    
+
 except KeyboardInterrupt:
     print("Watcher stopped by user")
 except ApiFileNotFoundError as e:
@@ -397,7 +514,7 @@ try:
         stability_seconds=2.0
     )
     print("Successfully processed one metadata file")
-    
+
 except Exception as e:
     print(f"Processing failed: {e}")
     exit(1)
@@ -464,7 +581,3 @@ make install-all    # Install all dependencies
 make test          # Run tests
 make lint          # Run linting
 ```
-
-
-
-

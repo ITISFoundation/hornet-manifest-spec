@@ -7,14 +7,43 @@ by both the API layer and other services like the watcher.
 import logging
 import shutil
 import tempfile
+from enum import Enum
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from ..model import Release
 from . import git_service, manifest_service, metadata_service
 from .processor import ManifestProcessor
 
 _logger = logging.getLogger(__name__)
+
+
+class WorkflowEvent(Enum):
+    """Workflow event types."""
+
+    BEFORE_PROCESS_MANIFEST = "before_process_manifest"
+
+
+class EventDispatcher:
+    """Simple event dispatcher for workflow events."""
+
+    def __init__(self):
+        self._callbacks: Dict[WorkflowEvent, List[Callable]] = {}
+
+    def register(self, event: WorkflowEvent, callback: Callable) -> None:
+        """Register a callback for a specific event."""
+        if event not in self._callbacks:
+            self._callbacks[event] = []
+        self._callbacks[event].append(callback)
+
+    def trigger(self, event: WorkflowEvent, **kwargs) -> None:
+        """Trigger all callbacks for a specific event."""
+        if event in self._callbacks:
+            for callback in self._callbacks[event]:
+                try:
+                    callback(**kwargs)
+                except Exception as e:
+                    _logger.error(f"Error in event callback for {event.value}: {e}")
 
 
 def run_workflow(
@@ -27,6 +56,7 @@ def run_workflow(
     plugin: Optional[str] = None,
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
+    event_dispatcher: Optional[EventDispatcher] = None,
 ) -> Tuple[int, int]:
     """Run a complete workflow to process hornet manifests.
 
@@ -40,6 +70,7 @@ def run_workflow(
         plugin: Plugin to use for processing
         type_filter: Filter components by type
         name_filter: Filter components by name
+        event_dispatcher: Optional event dispatcher for workflow events
 
     Returns:
         Tuple of (success_count, total_count)
@@ -67,7 +98,13 @@ def run_workflow(
     if repo_path:
         # Repo in place
         return _process_manifests(
-            repo_path, fail_fast, plugin, type_filter, name_filter, release
+            repo_path,
+            fail_fast,
+            plugin,
+            type_filter,
+            name_filter,
+            release,
+            event_dispatcher,
         )
 
     else:
@@ -95,6 +132,7 @@ def run_workflow(
                 type_filter,
                 name_filter,
                 release,
+                event_dispatcher,
             )
 
         except Exception:
@@ -111,6 +149,7 @@ def _process_manifests(
     type_filter: Optional[str] = None,
     name_filter: Optional[str] = None,
     release: Optional[Release] = None,
+    event_dispatcher: Optional[EventDispatcher] = None,
 ) -> Tuple[int, int]:
     """Process manifests found in repository."""
     # 1. Find hornet manifests
@@ -145,7 +184,17 @@ def _process_manifests(
         for error in validation_errors:
             _logger.error(error)
 
-    # 3. Process CAD manifest with plugin
+    # 3. Trigger before_process_manifest event
+    if event_dispatcher:
+        event_dispatcher.trigger(
+            WorkflowEvent.BEFORE_PROCESS_MANIFEST,
+            repo_path=repo_path,
+            cad_manifest=cad_manifest,
+            sim_manifest=sim_manifest,
+            release=release,
+        )
+
+    # 4. Process CAD manifest with plugin
     if cad_manifest:
         return _process_manifest_with_plugin(
             cad_manifest,

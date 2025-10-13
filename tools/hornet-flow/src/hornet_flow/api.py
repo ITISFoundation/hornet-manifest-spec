@@ -21,11 +21,18 @@ from .exceptions import (
     ApiValidationError,
 )
 from .model import Release
-from .services import git_service, manifest_service, workflow_service
+from .services import git_service, manifest_service, watcher, workflow_service
 from .services.processor import ManifestProcessor
-from .services import watcher
+from .services.workflow_service import EventDispatcher, WorkflowEvent
 
 _logger = logging.getLogger(__name__)
+
+assert WorkflowEvent  # nosec
+
+__all__: tuple[str, ...] = (
+    "EventDispatcher",
+    "WorkflowEvent",
+)
 
 SuccessCountInt: TypeAlias = int
 TotalCountInt: TypeAlias = int
@@ -52,6 +59,7 @@ def _create_processing_error(
 
 def handle_service_exceptions(operation_name: str = "operation"):
     """Decorator to handle common service layer exceptions and convert them to API exceptions."""
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -66,8 +74,12 @@ def handle_service_exceptions(operation_name: str = "operation"):
             except subprocess.CalledProcessError as e:
                 raise _create_processing_error(e, operation_name) from e
             except jsonschema.ValidationError as e:
-                raise ApiValidationError(f"Schema validation failed: {e.message}") from e
+                raise ApiValidationError(
+                    f"Schema validation failed: {e.message}"
+                ) from e
+
         return wrapper
+
     return decorator
 
 
@@ -86,6 +98,7 @@ class WorkflowAPI:
         plugin: Optional[str] = None,
         type_filter: Optional[str] = None,
         name_filter: Optional[str] = None,
+        event_dispatcher: Optional[EventDispatcher] = None,
     ) -> Tuple[SuccessCountInt, TotalCountInt]:
         """Run a complete workflow to process hornet manifests."""
         return workflow_service.run_workflow(
@@ -98,6 +111,7 @@ class WorkflowAPI:
             plugin=plugin,
             type_filter=type_filter,
             name_filter=name_filter,
+            event_dispatcher=event_dispatcher,
         )
 
     @handle_service_exceptions("watch operation")
@@ -123,9 +137,7 @@ class WorkflowAPI:
             )
 
         if not inputs_path.is_dir():
-            raise ApiInputValueError(
-                f"Inputs path is not a directory: {inputs_path}"
-            )
+            raise ApiInputValueError(f"Inputs path is not a directory: {inputs_path}")
 
         watcher.watch_for_metadata(
             inputs_dir=inputs_path,
