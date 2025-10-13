@@ -308,29 +308,6 @@ success_count, total_count = api.cad.load(
 )
 ```
 
-### Function-based API (Backward Compatibility)
-
-```python
-from hornet_flow.api import (
-    run_workflow_api,
-    clone_repository_api,
-    validate_manifests_api,
-    show_manifest_api,
-    load_cad_api
-)
-
-# Same functionality as class-based API
-success_count, total_count = run_workflow_api(
-    repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
-    plugin="osparc"
-)
-
-repo_path = clone_repository_api(
-    repo_url="https://github.com/example/repo",
-    dest="/tmp/repo"
-)
-```
-
 ### API Examples
 
 **Complete workflow with error handling:**
@@ -364,6 +341,66 @@ except ApiValidationError as e:
     print(f"Validation failed: {e}")
 except ApiProcessingError as e:
     print(f"Processing failed: {e}")
+```
+
+**Automated file watching:**
+```python
+from hornet_flow.api import HornetFlowAPI
+from hornet_flow.exceptions import ApiFileNotFoundError, ApiInputValueError
+import os
+from pathlib import Path
+
+api = HornetFlowAPI()
+
+# Get directories from environment or use defaults
+inputs_dir = os.getenv("INPUTS_DIR", "/shared/inputs")
+work_dir = os.getenv("WORK_DIR", "/shared/work")
+
+try:
+    # Watch for metadata.json files continuously
+    api.workflow.watch(
+        inputs_dir=inputs_dir,
+        work_dir=str(Path(work_dir) / "hornet-flows"),
+        once=False,  # Continuous watching
+        plugin="osparc",
+        type_filter="assembly",
+        fail_fast=False,
+        stability_seconds=3.0
+    )
+    
+except KeyboardInterrupt:
+    print("Watcher stopped by user")
+except ApiFileNotFoundError as e:
+    print(f"Directory not found: {e}")
+except ApiInputValueError as e:
+    print(f"Invalid input: {e}")
+except Exception as e:
+    print(f"Watcher failed: {e}")
+```
+
+**Single-time processing mode**
+
+```python
+from hornet_flow.api import HornetFlowAPI
+import os
+
+api = HornetFlowAPI()
+
+# Process one file and exit (useful for Docker containers)
+try:
+    api.workflow.watch(
+        inputs_dir=os.getenv("INPUTS_DIR", "/shared/inputs"),
+        work_dir=os.getenv("WORK_DIR", "/shared/work"),
+        once=True,  # Exit after processing one file
+        plugin="osparc",
+        fail_fast=True,
+        stability_seconds=2.0
+    )
+    print("Successfully processed one metadata file")
+    
+except Exception as e:
+    print(f"Processing failed: {e}")
+    exit(1)
 ```
 
 **Batch processing multiple repositories:**
