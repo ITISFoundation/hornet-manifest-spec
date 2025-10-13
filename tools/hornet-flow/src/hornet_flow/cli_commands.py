@@ -13,14 +13,7 @@ import typer
 from click import Choice
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from .api import (
-    clone_repository_api,
-    load_cad_api,
-    run_workflow_api,
-    show_manifest_api,
-    validate_manifests_api,
-    workflow_watch_api,
-)
+from .api import HornetFlowAPI
 from .cli_exceptions import handle_command_errors
 from .cli_state import app_console, app_logger, merge_global_options
 
@@ -114,8 +107,9 @@ def workflow_run_cmd(
     ) as progress:
         task = progress.add_task("Processing workflow...", total=None)
 
-        # Call pure API function
-        success_count, total_count = run_workflow_api(
+        # Call class-based API
+        api = HornetFlowAPI()
+        success_count, total_count = api.workflow.run(
             metadata_file=metadata_file,
             repo_url=repo_url,
             repo_commit=repo_commit,
@@ -173,8 +167,9 @@ def repo_clone_cmd(
     ) as progress:
         task = progress.add_task(f"Cloning repository to {dest_path}...", total=None)
 
-        # Call pure API function
-        repo_path = clone_repository_api(repo_url, str(dest_path), commit)
+        # Call class-based API
+        api = HornetFlowAPI()
+        repo_path = api.repo.clone(repo_url, str(dest_path), commit)
 
         progress.update(task, description="Repository cloned successfully")
 
@@ -212,8 +207,9 @@ def manifest_validate_cmd(
     ) as progress:
         find_task = progress.add_task("Finding manifest files...", total=None)
 
-        # Call pure API function
-        cad_valid, sim_valid = validate_manifests_api(repo_path)
+        # Call class-based API
+        api = HornetFlowAPI()
+        cad_valid, sim_valid = api.manifest.validate(repo_path)
 
         progress.update(find_task, description="Validation completed")
 
@@ -255,8 +251,9 @@ def manifest_show_cmd(
     app_logger.info("📁 Repository: %s", repo_path)
     app_logger.info("🔍 Type: %s", manifest_type)
 
-    # Call pure API function
-    manifest_data = show_manifest_api(repo_path, manifest_type)
+    # Call class-based API
+    api = HornetFlowAPI()
+    manifest_data = api.manifest.show(repo_path, manifest_type)
 
     # CLI-specific output formatting
     if "cad" in manifest_data:
@@ -296,8 +293,9 @@ def cad_load_cmd(
     app_logger.info("🔧 Loading CAD files")
     app_logger.info(" 📁 Repository: %s", repo_path)
 
-    # Call pure API function
-    success_count, total_count = load_cad_api(
+    # Call class-based API
+    api = HornetFlowAPI()
+    success_count, total_count = api.cad.load(
         repo_path, plugin, type_filter, name_filter, fail_fast
     )
 
@@ -378,9 +376,10 @@ def workflow_watch_cmd(
     app_logger.info("📁 Inputs directory: %s", inputs_dir)
     app_logger.info("📁 Work directory: %s", work_path)
 
-    # Call the API function
+    # Call the class-based API
     try:
-        workflow_watch_api(
+        api = HornetFlowAPI()
+        api.workflow.watch(
             inputs_dir=inputs_dir,
             work_dir=str(work_path),
             once=once,
