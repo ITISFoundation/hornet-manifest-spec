@@ -74,11 +74,11 @@ build-type-stubs: type-stubs ## Package type stubs for distribution
 # Test targets
 test:  ## Run tests
 	@echo "Running all tests..."
-	uv run pytest -v test.py
+	uv run pytest -v test
 
 test-unit:
 	@echo "Running unit tests..."
-	uv run pytest test.py -v -k "not integration" .
+	uv run pytest test -v -k "not integration" .
 
 test-integration:  ## Run integration tests
 	@echo "Running integration tests..."
