@@ -1,4 +1,7 @@
 import asyncio
+import logging
+
+_logger = logging.getLogger(__name__)
 
 
 class AsyncBridge:
@@ -17,7 +20,7 @@ class AsyncBridge:
             RuntimeError: If the event loop is closed or shutting down
             Exception: If waiting for the event fails
         """
-        future = asyncio.run_coroutine_threadsafe(
-            self._app_ready_event.wait(), self._loop
-        )
-        future.result()  # Block until the event is set
+        coro = self._app_ready_event.wait()
+        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        result = future.result()  # Block until the asyncio event is set
+        _logger.debug("App is ready: %s", result)

@@ -5,33 +5,13 @@
 
 import asyncio
 
-import pytest
-
 from hornet_flow.async_utils import AsyncBridge
 from hornet_flow.services.workflow_service import EventDispatcher, WorkflowEvent
 
 
-@pytest.fixture
-def app_ready_event() -> asyncio.Event:
-    """Fixture providing an asyncio Event for app readiness."""
-    return asyncio.Event()
-
-
-@pytest.fixture
-def event_loop() -> asyncio.AbstractEventLoop:
-    """Fixture providing the current event loop."""
-    return asyncio.get_event_loop()
-
-
-@pytest.fixture
-def async_bridge(
-    app_ready_event: asyncio.Event, event_loop: asyncio.AbstractEventLoop
-) -> AsyncBridge:
-    """Fixture providing an AsyncBridge instance."""
-    return AsyncBridge(app_ready_event, event_loop)
-
-
-def sync_function_that_uses_event_dispatcher(event_dispatcher: EventDispatcher) -> str:
+def _fake_sync_function_that_uses_event_dispatcher(
+    event_dispatcher: EventDispatcher,
+) -> str:
     """Simulates a sync function that registers callbacks with EventDispatcher."""
     result = "not_ready"
 
@@ -48,10 +28,11 @@ def sync_function_that_uses_event_dispatcher(event_dispatcher: EventDispatcher) 
     return result
 
 
-async def test_async_bridge_coordination(
-    async_bridge: AsyncBridge, app_ready_event: asyncio.Event
-):
-    """Test that AsyncBridge properly adapts async events for sync functions."""
+async def test_async_bridge_coordination():
+    event_loop = asyncio.get_running_loop()
+    app_ready_event = asyncio.Event()
+
+    async_bridge = AsyncBridge(app_ready_event, event_loop)
 
     # Create EventDispatcher that will be passed to sync function
     event_dispatcher = EventDispatcher()
@@ -65,16 +46,15 @@ async def test_async_bridge_coordination(
     sync_function_completed = False
     sync_function_result = None
 
-    async def run_sync_function():
-        """Run the sync function in a thread."""
+    async def _fake_background_task():
         nonlocal sync_function_completed, sync_function_result
         sync_function_result = await asyncio.to_thread(
-            sync_function_that_uses_event_dispatcher, event_dispatcher
+            _fake_sync_function_that_uses_event_dispatcher, event_dispatcher
         )
         sync_function_completed = True
 
     # Start the sync function (it will wait for app ready event)
-    task = asyncio.create_task(run_sync_function())
+    task = asyncio.create_task(_fake_background_task())
 
     # Give it a moment to start and register callback
     await asyncio.sleep(0.1)
