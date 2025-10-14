@@ -41,6 +41,8 @@ disable = [
 ]
 
 
+
+
 [tool.ruff.lint]
 select = ["I"]  # enable isort rules
 isort.known-first-party = ["hornet_flow"]  # adjust to your own package
@@ -49,6 +51,9 @@ isort.combine-as-imports = true
 
 
 [tool.pytest.ini_options]
+addopts = "--strict-markers"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
   "integration: tests against repose with external manifests",
