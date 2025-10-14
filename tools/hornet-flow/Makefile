@@ -35,7 +35,7 @@ install-dev: venv ## Install from local repository
 	uv sync --group dev
 
 
-install-from-git:  ## Install from remote gh repository
+install-from-git: venv  ## Install from remote gh repository
 	uv pip install "git+https://github.com/ITISFoundation/hornet-manifest-spec.git@main#subdirectory=tools/hornet-flow"
 
 install-lint: venv
