@@ -136,7 +136,7 @@ validate-code:
 # Test with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	uv run --with pytest-cov --with pytest-mock pytest test.py --cov=src/hornet_flow --cov-report=html --cov-report=term
+	uv run pytest tests --cov=src/hornet_flow --cov-report=html --cov-report=term --cov-report=xml
 
 dev-flow: check-deps venv install-all validate-code test ## runs full development workflow
 	@echo "✓ Development workflow complete"
