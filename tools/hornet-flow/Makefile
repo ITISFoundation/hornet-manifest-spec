@@ -1,4 +1,6 @@
-include ../../common.mk
+COMMON_MK_PATH := ../../common.mk
+
+include $(COMMON_MK_PATH)
 
 # Directory variables
 TYPINGS_DIR := typings
@@ -112,7 +114,7 @@ run-show-example:
 # Clean files based on .gitignore (safe - only removes ignored files)
 # Removes files and directories ignored by git, but leaves untracked files
 clean: ## Clean files based on .gitignore (safe - only removes ignored files)
-	@$(MAKE) -f ../common.mk clean_common
+	@$(MAKE) -f $(COMMON_MK_PATH) clean_common
 	@echo "Cleaning type stubs..."
 	@rm -rf $(TYPINGS_DIR)/ $(DIST_DIR)/
 	@echo "✓ Type stubs cleaned"
