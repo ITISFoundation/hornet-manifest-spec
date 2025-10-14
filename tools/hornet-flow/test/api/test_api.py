@@ -22,4 +22,4 @@ def test_event_system_imports() -> None:
     """Test that event system components are properly imported."""
     assert EventDispatcher is not None
     assert WorkflowEvent is not None
-    assert WorkflowEvent.BEFORE_PROCESS_MANIFEST is not None
+    assert WorkflowEvent.MANIFESTS_READY is not None

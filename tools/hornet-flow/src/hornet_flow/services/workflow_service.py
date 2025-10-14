@@ -60,8 +60,8 @@ class WorkflowEvent(Enum):
     REPOSITORY_READY = (
         "repository_ready"  # Triggered when repository is available locally
     )
-    BEFORE_PROCESS_MANIFEST = (
-        "before_process_manifest"  # Triggered before manifest processing
+    MANIFESTS_READY = (
+        "manifests_ready"  # Triggered when manifests are validated and ready to process
     )
     WORKFLOW_COMPLETED = (
         "workflow_completed"  # Triggered at workflow end with success/failure status
@@ -249,10 +249,10 @@ def _process_manifests(
         for error in validation_errors:
             _logger.error(error)
 
-    # 3. Trigger before_process_manifest event
+    # 3. Trigger manifests ready event
     if event_dispatcher:
         event_dispatcher.trigger(
-            WorkflowEvent.BEFORE_PROCESS_MANIFEST,
+            WorkflowEvent.MANIFESTS_READY,
             repo_path=repo_path,
             cad_manifest=cad_manifest,
             sim_manifest=sim_manifest,

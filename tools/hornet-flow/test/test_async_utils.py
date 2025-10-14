@@ -20,10 +20,10 @@ def _fake_sync_function_that_uses_event_dispatcher(
         result = "ready"
 
     # Register callback for app ready event
-    event_dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, on_app_ready)
+    event_dispatcher.register(WorkflowEvent.MANIFESTS_READY, on_app_ready)
 
     # Trigger the event to see if callback fires
-    event_dispatcher.trigger(WorkflowEvent.BEFORE_PROCESS_MANIFEST)
+    event_dispatcher.trigger(WorkflowEvent.MANIFESTS_READY)
 
     return result
 
@@ -39,7 +39,7 @@ async def test_async_bridge_coordination():
 
     # Register AsyncBridge callback with EventDispatcher
     event_dispatcher.register(
-        WorkflowEvent.BEFORE_PROCESS_MANIFEST, async_bridge.wait_for_app_ready_sync
+        WorkflowEvent.MANIFESTS_READY, async_bridge.wait_for_app_ready_sync
     )
 
     # Track execution state

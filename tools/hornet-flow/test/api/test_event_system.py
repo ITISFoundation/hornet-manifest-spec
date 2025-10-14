@@ -35,7 +35,7 @@ def test_single_event_handler(dispatcher: EventDispatcher) -> None:
         callback_kwargs = kwargs
 
     # Register callback
-    dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, check_external_readiness)
+    dispatcher.register(WorkflowEvent.MANIFESTS_READY, check_external_readiness)
 
     # Trigger event
     test_kwargs = {
@@ -44,7 +44,7 @@ def test_single_event_handler(dispatcher: EventDispatcher) -> None:
         "sim_manifest": None,
         "release": None,
     }
-    dispatcher.trigger(WorkflowEvent.BEFORE_PROCESS_MANIFEST, **test_kwargs)
+    dispatcher.trigger(WorkflowEvent.MANIFESTS_READY, **test_kwargs)
 
     # Verify
     assert callback_called
@@ -66,12 +66,12 @@ def test_multiple_event_handlers(dispatcher: EventDispatcher) -> None:
         handlers_called.append("notification")
 
     # Register all handlers
-    dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, check_service_health)
-    dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, log_workflow_progress)
-    dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, send_notification)
+    dispatcher.register(WorkflowEvent.MANIFESTS_READY, check_service_health)
+    dispatcher.register(WorkflowEvent.MANIFESTS_READY, log_workflow_progress)
+    dispatcher.register(WorkflowEvent.MANIFESTS_READY, send_notification)
 
     # Trigger event
-    dispatcher.trigger(WorkflowEvent.BEFORE_PROCESS_MANIFEST, repo_path=Path("/test"))
+    dispatcher.trigger(WorkflowEvent.MANIFESTS_READY, repo_path=Path("/test"))
 
     # Verify all handlers were called
     assert len(handlers_called) == 3
@@ -92,11 +92,11 @@ def test_event_handler_exception_handling(dispatcher: EventDispatcher) -> None:
     successful_handler.called = False  # type: ignore
 
     # Register both handlers
-    dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, failing_handler)
-    dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, successful_handler)
+    dispatcher.register(WorkflowEvent.MANIFESTS_READY, failing_handler)
+    dispatcher.register(WorkflowEvent.MANIFESTS_READY, successful_handler)
 
     # Trigger event - should not raise exception
-    dispatcher.trigger(WorkflowEvent.BEFORE_PROCESS_MANIFEST, repo_path=Path("/test"))
+    dispatcher.trigger(WorkflowEvent.MANIFESTS_READY, repo_path=Path("/test"))
 
     # Verify successful handler was still called despite failing handler
     assert successful_handler.called  # type: ignore

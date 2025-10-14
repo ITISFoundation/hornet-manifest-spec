@@ -106,7 +106,7 @@ def test_workflow_run_with_event_dispatcher(
         nonlocal callback_called
         callback_called = True
 
-    dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, check_external_readiness)
+    dispatcher.register(WorkflowEvent.MANIFESTS_READY, check_external_readiness)
 
     # Execute
     success_count, total_count = api.workflow.run(
@@ -138,7 +138,7 @@ def test_watch_with_event_dispatcher(
         nonlocal callback_called
         callback_called = True
 
-    dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, check_readiness)
+    dispatcher.register(WorkflowEvent.MANIFESTS_READY, check_readiness)
 
     inputs_dir = tmp_path / "inputs"
     inputs_dir.mkdir()
