@@ -4,6 +4,7 @@ This module provides functionality for working with hornet manifest files includ
 finding, validating, reading, and processing manifest contents.
 """
 
+import asyncio
 import json
 from collections.abc import Iterator
 from pathlib import Path
@@ -13,6 +14,40 @@ import httpx
 import jsonschema
 
 from ..model import Component, File
+
+
+def _load_manifest_data(manifest_file: Path) -> dict[str, Any]:
+    """Load manifest data from file.
+
+    Raises:
+        json.JSONDecodeError: If file is not valid JSON
+        FileNotFoundError: If file does not exist
+    """
+    with manifest_file.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _extract_schema_url(manifest_data: dict[str, Any], manifest_file: Path) -> str:
+    """Extract and validate schema URL from manifest data.
+
+    Raises:
+        FileNotFoundError: If no $schema field found
+    """
+    schema_url = manifest_data.get("$schema")
+    if not schema_url:
+        raise FileNotFoundError(f"No $schema field found in {manifest_file}")
+    return schema_url
+
+
+def _validate_against_schema(
+    manifest_data: dict[str, Any], schema: dict[str, Any]
+) -> None:
+    """Validate manifest data against JSON schema.
+
+    Raises:
+        jsonschema.ValidationError: If manifest is invalid
+    """
+    jsonschema.validate(manifest_data, schema)
 
 
 def find_hornet_manifests(repo_path: Path | str) -> tuple[Path | None, Path | None]:
@@ -40,22 +75,45 @@ def find_hornet_manifests(repo_path: Path | str) -> tuple[Path | None, Path | No
 
 
 def validate_manifest_schema(manifest_file: Path):
-    """Extract $schema URL from manifest file and validate using jsonschema."""
-    with manifest_file.open("r", encoding="utf-8") as f:
-        manifest = json.load(f)
+    """Extract $schema URL from manifest file and validate using jsonschema.
 
-    schema_url = manifest.get("$schema")
-    if not schema_url:
-        error_msg = f"No $schema field found in {manifest_file}"
-        raise FileNotFoundError(error_msg)
+    Raises:
+        FileNotFoundError: If no $schema field found
+        httpx.HTTPError: If schema download fails
+        jsonschema.ValidationError: If manifest is invalid
+    """
+    manifest_data = _load_manifest_data(manifest_file)
+    schema_url = _extract_schema_url(manifest_data, manifest_file)
 
     # Download schema
     response = httpx.get(schema_url)
     response.raise_for_status()
     schema = response.json()
 
-    # Validate manifest against schema. Raises if not valid
-    jsonschema.validate(manifest, schema)
+    # Validate manifest against schema
+    _validate_against_schema(manifest_data, schema)
+
+
+async def validate_manifest_schema_async(manifest_file: Path):
+    """Extract $schema URL from manifest file and validate using jsonschema (async version).
+
+    Raises:
+        FileNotFoundError: If no $schema field found
+        httpx.HTTPError: If schema download fails
+        jsonschema.ValidationError: If manifest is invalid
+    """
+    # Load manifest in thread pool to avoid blocking
+    manifest_data = await asyncio.to_thread(_load_manifest_data, manifest_file)
+    schema_url = _extract_schema_url(manifest_data, manifest_file)
+
+    # Download schema asynchronously
+    async with httpx.AsyncClient() as client:
+        response = await client.get(schema_url)
+        response.raise_for_status()
+        schema = response.json()
+
+    # Validate in thread pool since jsonschema is CPU-bound
+    await asyncio.to_thread(_validate_against_schema, manifest_data, schema)
 
 
 def read_manifest_contents(manifest: Path) -> dict[str, Any]:
