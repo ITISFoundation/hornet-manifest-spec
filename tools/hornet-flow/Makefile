@@ -8,6 +8,8 @@ DIST_DIR := dist
 
 .PHONY: test test-unit test-integration lint clean clean-venv install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
 
+# Install and build
+.PHONY: install install-dev install-from-git install-lint install-all install-types
 install-uv:
 	@echo "Installing uv..."
 	@curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -25,8 +27,6 @@ venv: check-deps ## Creates virtual env in .venv
 	fi
 
 # Install and build
-.PHONY: install install-dev install-from-git install-lint install-all
-
 install: venv
 	@echo "Installing package in editable mode with dependencies..."
 	uv sync
@@ -53,7 +53,8 @@ install-types: venv
 	uv add --group dev pyright
 
 
-.PHONY: build
+# Build and type stubs
+.PHONY: build build-type-stubs type-stubs
 build:  ## Build the package
 	uv build --out-dir $(DIST_DIR)
 
@@ -74,6 +75,7 @@ build-type-stubs: type-stubs ## Package type stubs for distribution
 	@echo "✓ Type stubs packaged as types-hornet-flow in $(DIST_DIR)/"
 
 # Test targets
+.PHONY: tests tests-unit tests-integration test-coverage
 tests:  ## Run tests
 	@echo "Running all tests..."
 	uv run pytest -v tests
@@ -86,12 +88,20 @@ tests-integration:  ## Run integration tests
 	@echo "Running integration tests..."
 	uv run pytest tests -v -k "integration"
 
+# Lint and code validation
+.PHONY: lint validate-code
 lint:  ## Run linting
 	@echo "Running code linting..."
 	uv run ruff check .
 	uv run ruff format --check .
 
+validate-code:
+	@echo "Validating code with ruff..."
+	uv run ruff check src/ test.py
+	@echo "✓ Code validation passed"
+
 # Example runs for manual testing
+.PHONY: run-example run-clone-example run-validate-example run-show-example
 run-example:
 	@echo "Running workflow with example metadata..."
 	hornet-flow workflow run --metadata-file examples/portal-device-metadata.json --work-dir /tmp/hornet-flow --verbose
@@ -113,6 +123,7 @@ run-show-example:
 # Utility targets
 # Clean files based on .gitignore (safe - only removes ignored files)
 # Removes files and directories ignored by git, but leaves untracked files
+.PHONY: clean clean-venv
 clean: ## Clean files based on .gitignore (safe - only removes ignored files)
 	@$(MAKE) -f $(COMMON_MK_PATH) clean_common
 	@echo "Cleaning type stubs..."
@@ -130,11 +141,6 @@ check-deps:
 	@command -v uv >/dev/null 2>&1 || (echo "✗ uv not found. Run 'make install-uv'"; exit 1)
 	@echo "✓ uv is available"
 
-validate-code:
-	@echo "Validating code with ruff..."
-	uv run ruff check src/ test.py
-	@echo "✓ Code validation passed"
-
 # Test with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
@@ -148,7 +154,7 @@ ci: check-deps venv install-lint validate-code lint test
 	@echo "✓ CI checks passed"
 
 # Demo and testing targets
-.PHONY: demo-watch
+.PHONY: demo-watch demo-watch-continuous test-metadata clean-demo
 demo-watch:  ## Demo the workflow watch command (creates temp dirs and runs watcher)
 	@echo "🚀 Setting up demo environment for workflow watch..."
 	@mkdir -p /tmp/hornet-demo/{inputs,work}
@@ -180,7 +186,6 @@ demo-watch-continuous:  ## Demo continuous workflow watching (runs until stopped
 	INPUTS_DIR=/tmp/hornet-demo/inputs WORK_DIR=/tmp/hornet-demo/work \
 		uv run hornet-flow workflow watch --verbose
 
-.PHONY: test-metadata
 test-metadata:  ## Create test metadata file for demo
 	@echo "📄 Creating test metadata.json file..."
 	@mkdir -p /tmp/hornet-demo/inputs
@@ -188,7 +193,6 @@ test-metadata:  ## Create test metadata file for demo
 	@echo "✅ Created /tmp/hornet-demo/inputs/metadata.json"
 	@echo "💡 Run 'make demo-watch' to process it"
 
-.PHONY: clean-demo
 clean-demo:  ## Clean up demo directories
 	@echo "🧹 Cleaning up demo directories..."
 	@rm -rf /tmp/hornet-demo
