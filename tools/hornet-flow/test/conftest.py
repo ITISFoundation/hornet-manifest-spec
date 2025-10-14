@@ -24,16 +24,32 @@ def repo_path() -> Path:
 
 
 @pytest.fixture
-def package_dir(repo_path: Path) -> Path:
-    dir_path = repo_path / "tools" / "hornet_flow"
+def examples_dir(repo_path: Path) -> Path:
+    dir_path = repo_path / "examples"
     assert dir_path.exists()
     assert dir_path.is_dir()
     return dir_path
 
 
 @pytest.fixture
-def schema_dir(package_dir: Path) -> Path:
-    dir_path = package_dir / "schema"
+def hornet_flow_package_dir(repo_path: Path) -> Path:
+    dir_path = repo_path / "tools" / "hornet-flow"
+    assert dir_path.exists()
+    assert dir_path.is_dir()
+    return dir_path
+
+
+@pytest.fixture
+def tools_hornet_flow_examples_dir(hornet_flow_package_dir: Path) -> Path:
+    dir_path = hornet_flow_package_dir / "examples"
+    assert dir_path.exists()
+    assert dir_path.is_dir()
+    return dir_path
+
+
+@pytest.fixture
+def schema_dir(hornet_flow_package_dir: Path) -> Path:
+    dir_path = hornet_flow_package_dir / "schema"
     assert dir_path.exists()
     assert dir_path.is_dir()
     return dir_path

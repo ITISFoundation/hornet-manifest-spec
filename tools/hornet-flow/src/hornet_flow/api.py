@@ -179,7 +179,7 @@ class ManifestAPI:
             raise ApiValidationError(msg) from e
 
     @handle_service_exceptions("manifest validation")
-    def validate(self, repo_path: str) -> tuple[bool, bool]:
+    def validate(self, repo_path: Path) -> tuple[bool, bool]:
         """Validate hornet manifests against their schemas."""
         repo_dir = Path(repo_path)
         cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_dir)

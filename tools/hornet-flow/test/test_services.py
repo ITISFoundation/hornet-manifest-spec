@@ -5,7 +5,9 @@
 # pylint: disable=unused-variable
 
 
+import contextlib
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -14,15 +16,16 @@ from hornet_flow import logging_utils, model
 from hornet_flow.services import git_service, manifest_service, metadata_service
 
 
-def test_load_metadata_portal_device():
+def test_load_metadata_portal_device(tools_hornet_flow_examples_dir: Path):
     """Test loading metadata from portal-device-metadata.json file."""
     # Get the path to the test JSON file
-    metadata_path = Path(__file__).parent / "examples" / "portal-device-metadata.json"
+    metadata_path = tools_hornet_flow_examples_dir / "portal-device-metadata.json"
+    assert metadata_path.exists(), f"Test file {metadata_path} should exist"
 
     # Load the metadata
     release = metadata_service.load_metadata_release(metadata_path)
 
-    # Verify release information]
+    # Verify release information
     assert release == model.Release(
         **{
             "origin": "GitHub",
@@ -59,10 +62,10 @@ def test_clone_repository(tmp_path: Path, commit_hash: str):
         assert repo_release.marker == commit_hash
 
 
-def test_walk_cad_manifest_components(repo_path: Path, tmp_path: Path):
+def test_walk_cad_manifest_components(examples_dir: Path, tmp_path: Path):
     """Test walking through CAD manifest components and validating with Pydantic model."""
     # Get the path to the test CAD manifest file
-    manifest_path = repo_path / "examples" / "cad_manifest.json"
+    manifest_path = examples_dir / "cad_manifest.json"
 
     # Load the manifest JSON
     with manifest_path.open("r", encoding="utf-8") as f:
@@ -208,8 +211,6 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
 
 def test_lifespan_in_contextmanager(caplog: pytest.LogCaptureFixture):
     """Test that log_lifespan logs start and end of context, including when exceptions are raised."""
-    import contextlib
-    import logging
 
     # Create a real logger for testing
     logger = logging.getLogger("test_logger")
