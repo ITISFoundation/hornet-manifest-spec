@@ -72,17 +72,17 @@ build-type-stubs: type-stubs ## Package type stubs for distribution
 	@echo "✓ Type stubs packaged as types-hornet-flow in $(DIST_DIR)/"
 
 # Test targets
-test:  ## Run tests
+tests:  ## Run tests
 	@echo "Running all tests..."
-	uv run pytest -v test
+	uv run pytest -v tests
 
-test-unit:
+tests-unit:
 	@echo "Running unit tests..."
-	uv run pytest test -v -k "not integration" .
+	uv run pytest tests -v -k "not integration" .
 
-test-integration:  ## Run integration tests
+tests-integration:  ## Run integration tests
 	@echo "Running integration tests..."
-	uv run pytest -v -k "integration"
+	uv run pytest tests -v -k "integration"
 
 lint:  ## Run linting
 	@echo "Running code linting..."

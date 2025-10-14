@@ -38,15 +38,15 @@ jobs:
       run: uv sync --all-groups
 
     - name: Validate code
-      run: uv run ruff check src/ test.py
+      run: uv run ruff check src/ tests/
       continue-on-error: true
 
     - name: Run linting
-      run: uv run ruff format --check src/ test.py
+      run: uv run ruff format --check src/ tests/
       continue-on-error: true
 
     - name: Run tests
-      run: uv run pytest test.py -v
+      run: uv run pytest tests -v
 
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.12'
