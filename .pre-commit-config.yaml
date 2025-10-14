@@ -16,7 +16,13 @@ repos:
             language: system
             files: '^vocab/.*\.json$'
             pass_filenames: false
-
+    -   repo: https://github.com/asottile/pyupgrade
+        rev: v3.21.0
+        hooks:
+          - id: pyupgrade
+            args:
+              - "--py311-plus"
+            name: upgrade syntax to py3.11         
     -   repo: https://github.com/hadialqattan/pycln
         rev: v2.5.0
         hooks:
