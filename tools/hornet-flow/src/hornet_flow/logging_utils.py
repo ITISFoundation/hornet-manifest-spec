@@ -1,6 +1,5 @@
 import contextlib
 import logging
-from typing import Optional
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -10,7 +9,7 @@ def setup_logging(
     verbose: bool = False,
     quiet: bool = False,
     plain: bool = False,
-    console: Optional[Console] = None,
+    console: Console | None = None,
 ) -> None:
     """Configure logging with RichHandler or plain logging."""
     if quiet:

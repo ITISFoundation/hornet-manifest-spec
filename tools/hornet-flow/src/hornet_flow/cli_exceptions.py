@@ -6,8 +6,9 @@ to convert core domain exceptions into proper CLI behavior.
 
 import logging
 import os
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 import typer
 

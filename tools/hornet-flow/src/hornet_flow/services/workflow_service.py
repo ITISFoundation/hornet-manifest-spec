@@ -7,9 +7,9 @@ by both the API layer and other services like the watcher.
 import logging
 import shutil
 import tempfile
+from collections.abc import Callable
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
 
 from ..model import Release
 from . import git_service, manifest_service, metadata_service
@@ -28,7 +28,7 @@ class EventDispatcher:
     """Simple event dispatcher for workflow events."""
 
     def __init__(self):
-        self._callbacks: Dict[WorkflowEvent, List[Callable]] = {}
+        self._callbacks: dict[WorkflowEvent, list[Callable]] = {}
 
     def register(self, event: WorkflowEvent, callback: Callable) -> None:
         """Register a callback for a specific event."""
@@ -47,17 +47,17 @@ class EventDispatcher:
 
 
 def run_workflow(
-    metadata_file_path: Optional[Path] = None,
-    repo_url: Optional[str] = None,
+    metadata_file_path: Path | None = None,
+    repo_url: str | None = None,
     repo_commit: str = "main",
-    repo_path: Optional[Path] = None,
-    work_dir: Optional[Path] = None,
+    repo_path: Path | None = None,
+    work_dir: Path | None = None,
     fail_fast: bool = False,
-    plugin: Optional[str] = None,
-    type_filter: Optional[str] = None,
-    name_filter: Optional[str] = None,
-    event_dispatcher: Optional[EventDispatcher] = None,
-) -> Tuple[int, int]:
+    plugin: str | None = None,
+    type_filter: str | None = None,
+    name_filter: str | None = None,
+    event_dispatcher: EventDispatcher | None = None,
+) -> tuple[int, int]:
     """Run a complete workflow to process hornet manifests.
 
     Args:
@@ -145,12 +145,12 @@ def run_workflow(
 def _process_manifests(
     repo_path: Path,
     fail_fast: bool = False,
-    plugin_name: Optional[str] = None,
-    type_filter: Optional[str] = None,
-    name_filter: Optional[str] = None,
-    release: Optional[Release] = None,
-    event_dispatcher: Optional[EventDispatcher] = None,
-) -> Tuple[int, int]:
+    plugin_name: str | None = None,
+    type_filter: str | None = None,
+    name_filter: str | None = None,
+    release: Release | None = None,
+    event_dispatcher: EventDispatcher | None = None,
+) -> tuple[int, int]:
     """Process manifests found in repository."""
     # 1. Find hornet manifests
     cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_path)
@@ -211,11 +211,11 @@ def _process_manifests(
 def _process_manifest_with_plugin(
     cad_manifest: Path,
     repo_path: Path,
-    plugin_name: Optional[str] = None,
-    type_filter: Optional[str] = None,
-    name_filter: Optional[str] = None,
-    repo_release: Optional[Release] = None,
-) -> Tuple[int, int]:
+    plugin_name: str | None = None,
+    type_filter: str | None = None,
+    name_filter: str | None = None,
+    repo_release: Release | None = None,
+) -> tuple[int, int]:
     """Process CAD manifest using specified plugin."""
     processor = ManifestProcessor(plugin_name, _logger)
 

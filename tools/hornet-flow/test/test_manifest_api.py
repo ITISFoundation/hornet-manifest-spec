@@ -5,7 +5,6 @@
 # pylint: disable=unused-variable
 
 from pathlib import Path
-from typing import Any, Dict
 
 import pytest
 from pytest_mock import MockerFixture
@@ -20,12 +19,18 @@ def api() -> HornetFlowAPI:
     return HornetFlowAPI()
 
 
-def test_manifest_validate_both_valid(mocker: MockerFixture, api: HornetFlowAPI) -> None:
+def test_manifest_validate_both_valid(
+    mocker: MockerFixture, api: HornetFlowAPI
+) -> None:
     """Test validating manifests when both are valid."""
     # Setup
-    mock_find = mocker.patch('hornet_flow.services.manifest_service.find_hornet_manifests')
-    mock_validate = mocker.patch('hornet_flow.services.manifest_service.validate_manifest_schema')
-    
+    mock_find = mocker.patch(
+        "hornet_flow.services.manifest_service.find_hornet_manifests"
+    )
+    mock_validate = mocker.patch(
+        "hornet_flow.services.manifest_service.validate_manifest_schema"
+    )
+
     mock_find.return_value = (Path("/repo/cad.json"), Path("/repo/sim.json"))
     mock_validate.return_value = None  # No exceptions means valid
 
@@ -38,10 +43,14 @@ def test_manifest_validate_both_valid(mocker: MockerFixture, api: HornetFlowAPI)
     assert mock_validate.call_count == 2
 
 
-def test_manifest_validate_no_manifests(mocker: MockerFixture, api: HornetFlowAPI) -> None:
+def test_manifest_validate_no_manifests(
+    mocker: MockerFixture, api: HornetFlowAPI
+) -> None:
     """Test validating when no manifests are found."""
     # Setup
-    mock_find = mocker.patch('hornet_flow.services.manifest_service.find_hornet_manifests')
+    mock_find = mocker.patch(
+        "hornet_flow.services.manifest_service.find_hornet_manifests"
+    )
     mock_find.return_value = (None, None)
 
     # Execute & Verify
@@ -52,14 +61,15 @@ def test_manifest_validate_no_manifests(mocker: MockerFixture, api: HornetFlowAP
 def test_manifest_show_both(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     """Test showing both manifest types from README example."""
     # Setup
-    mock_find = mocker.patch('hornet_flow.services.manifest_service.find_hornet_manifests')
-    mock_read = mocker.patch('hornet_flow.services.manifest_service.read_manifest_contents')
-    
+    mock_find = mocker.patch(
+        "hornet_flow.services.manifest_service.find_hornet_manifests"
+    )
+    mock_read = mocker.patch(
+        "hornet_flow.services.manifest_service.read_manifest_contents"
+    )
+
     mock_find.return_value = (Path("/repo/cad.json"), Path("/repo/sim.json"))
-    mock_read.side_effect = [
-        {"cad_data": "test"},
-        {"sim_data": "test"}
-    ]
+    mock_read.side_effect = [{"cad_data": "test"}, {"sim_data": "test"}]
 
     # Execute
     result = api.manifest.show("/path/to/repo", manifest_type="both")
@@ -74,9 +84,13 @@ def test_manifest_show_both(mocker: MockerFixture, api: HornetFlowAPI) -> None:
 def test_manifest_show_cad_only(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     """Test showing only CAD manifest."""
     # Setup
-    mock_find = mocker.patch('hornet_flow.services.manifest_service.find_hornet_manifests')
-    mock_read = mocker.patch('hornet_flow.services.manifest_service.read_manifest_contents')
-    
+    mock_find = mocker.patch(
+        "hornet_flow.services.manifest_service.find_hornet_manifests"
+    )
+    mock_read = mocker.patch(
+        "hornet_flow.services.manifest_service.read_manifest_contents"
+    )
+
     mock_find.return_value = (Path("/repo/cad.json"), None)
     mock_read.return_value = {"cad_data": "test"}
 

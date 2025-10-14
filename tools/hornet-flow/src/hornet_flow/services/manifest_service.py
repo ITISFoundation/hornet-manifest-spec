@@ -5,8 +5,9 @@ finding, validating, reading, and processing manifest contents.
 """
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any
 
 import httpx
 import jsonschema
@@ -64,7 +65,7 @@ def read_manifest_contents(manifest: Path) -> dict[str, Any]:
 
 
 def walk_manifest_components(
-    manifest_data: Dict[str, Any], parent_path: Optional[list[str]] = None
+    manifest_data: dict[str, Any], parent_path: list[str] | None = None
 ) -> Iterator[Component]:
     """Walk through manifest components and yield Component dataclass instances.
 

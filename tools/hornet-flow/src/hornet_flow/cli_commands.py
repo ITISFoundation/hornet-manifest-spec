@@ -45,18 +45,18 @@ FailFastOption = Annotated[
 @handle_command_errors
 def workflow_run_cmd(
     metadata_file: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--metadata-file", help="Path to metadata JSON file"),
     ] = None,
     repo_url: Annotated[
-        Optional[str], typer.Option("--repo-url", help="Repository URL")
+        str | None, typer.Option("--repo-url", help="Repository URL")
     ] = None,
     repo_commit: Annotated[str, typer.Option("--commit", help="Commit hash")] = "main",
     repo_path: Annotated[
-        Optional[str], typer.Option("--repo-path", help="Path to already-cloned repo")
+        str | None, typer.Option("--repo-path", help="Path to already-cloned repo")
     ] = None,
     work_dir: Annotated[
-        Optional[str], typer.Option("--work-dir", help="Working directory for clones")
+        str | None, typer.Option("--work-dir", help="Working directory for clones")
     ] = None,
     fail_fast: FailFastOption = False,
     plugin: PluginOption = None,
@@ -131,9 +131,7 @@ def workflow_run_cmd(
 @handle_command_errors
 def repo_clone_cmd(
     repo_url: Annotated[str, typer.Option("--repo-url", help="Repository URL")],
-    dest: Annotated[
-        Optional[str], typer.Option("--dest", help="Destination path")
-    ] = None,
+    dest: Annotated[str | None, typer.Option("--dest", help="Destination path")] = None,
     commit: Annotated[str, typer.Option("--commit", help="Commit hash")] = "main",
     # CLI-specific options
     verbose: VerboseOption = False,

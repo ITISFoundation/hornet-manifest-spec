@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, TypeAlias
+from typing import Any, TypeAlias
 
 import jsonschema
 
@@ -33,6 +33,7 @@ __all__: tuple[str, ...] = (
     "EventDispatcher",
     "WorkflowEvent",
 )
+
 
 SuccessCountInt: TypeAlias = int
 TotalCountInt: TypeAlias = int
@@ -89,17 +90,17 @@ class WorkflowAPI:
     @handle_service_exceptions("workflow operation")
     def run(
         self,
-        metadata_file: Optional[str] = None,
-        repo_url: Optional[str] = None,
+        metadata_file: str | None = None,
+        repo_url: str | None = None,
         repo_commit: str = "main",
-        repo_path: Optional[str] = None,
-        work_dir: Optional[str] = None,
+        repo_path: str | None = None,
+        work_dir: str | None = None,
         fail_fast: bool = False,
-        plugin: Optional[str] = None,
-        type_filter: Optional[str] = None,
-        name_filter: Optional[str] = None,
-        event_dispatcher: Optional[EventDispatcher] = None,
-    ) -> Tuple[SuccessCountInt, TotalCountInt]:
+        plugin: str | None = None,
+        type_filter: str | None = None,
+        name_filter: str | None = None,
+        event_dispatcher: EventDispatcher | None = None,
+    ) -> tuple[SuccessCountInt, TotalCountInt]:
         """Run a complete workflow to process hornet manifests."""
         return workflow_service.run_workflow(
             metadata_file_path=Path(metadata_file) if metadata_file else None,
@@ -120,12 +121,12 @@ class WorkflowAPI:
         inputs_dir: str,
         work_dir: str,
         once: bool = False,
-        plugin: Optional[str] = None,
-        type_filter: Optional[str] = None,
-        name_filter: Optional[str] = None,
+        plugin: str | None = None,
+        type_filter: str | None = None,
+        name_filter: str | None = None,
         fail_fast: bool = False,
         stability_seconds: float = 2.0,
-        event_dispatcher: Optional[EventDispatcher] = None,
+        event_dispatcher: EventDispatcher | None = None,
     ) -> None:
         """Watch for metadata.json files and automatically process them."""
         inputs_path = Path(inputs_dir).resolve()
@@ -158,7 +159,7 @@ class RepoAPI:
 
     @handle_service_exceptions("clone repository")
     def clone(
-        self, repo_url: str, dest: Optional[str] = None, commit: str = "main"
+        self, repo_url: str, dest: str | None = None, commit: str = "main"
     ) -> Path:
         """Clone a repository and checkout a specific commit."""
         dest_path = Path(dest or tempfile.gettempdir()).resolve()
@@ -178,7 +179,7 @@ class ManifestAPI:
             raise ApiValidationError(msg) from e
 
     @handle_service_exceptions("manifest validation")
-    def validate(self, repo_path: str) -> Tuple[bool, bool]:
+    def validate(self, repo_path: str) -> tuple[bool, bool]:
         """Validate hornet manifests against their schemas."""
         repo_dir = Path(repo_path)
         cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_dir)
@@ -202,7 +203,7 @@ class ManifestAPI:
         return cad_valid, sim_valid
 
     @handle_service_exceptions("manifest show")
-    def show(self, repo_path: str, manifest_type: str = "both") -> Dict[str, Any]:
+    def show(self, repo_path: str, manifest_type: str = "both") -> dict[str, Any]:
         """Get manifest contents."""
         repo_dir = Path(repo_path)
         cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_dir)
@@ -237,11 +238,11 @@ class ManifestAPI:
         self,
         cad_manifest: Path,
         repo_path: Path,
-        plugin_name: Optional[str] = None,
-        type_filter: Optional[str] = None,
-        name_filter: Optional[str] = None,
-        repo_release: Optional[Release] = None,
-    ) -> Tuple[SuccessCountInt, TotalCountInt]:
+        plugin_name: str | None = None,
+        type_filter: str | None = None,
+        name_filter: str | None = None,
+        repo_release: Release | None = None,
+    ) -> tuple[SuccessCountInt, TotalCountInt]:
         """Process CAD manifest using specified plugin."""
         processor = ManifestProcessor(plugin_name, _logger)
         success_count, total_count = processor.process_manifest(
@@ -254,11 +255,11 @@ class ManifestAPI:
         self,
         repo_path: Path,
         fail_fast: bool = False,
-        plugin_name: Optional[str] = None,
-        type_filter: Optional[str] = None,
-        name_filter: Optional[str] = None,
-        release: Optional[Release] = None,
-    ) -> Tuple[SuccessCountInt, TotalCountInt]:
+        plugin_name: str | None = None,
+        type_filter: str | None = None,
+        name_filter: str | None = None,
+        release: Release | None = None,
+    ) -> tuple[SuccessCountInt, TotalCountInt]:
         """Process manifests found in repository."""
         # 1. Find hornet manifests
         cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_path)
@@ -312,11 +313,11 @@ class CadAPI:
     def load(
         self,
         repo_path: str,
-        plugin: Optional[str] = None,
-        type_filter: Optional[str] = None,
-        name_filter: Optional[str] = None,
+        plugin: str | None = None,
+        type_filter: str | None = None,
+        name_filter: str | None = None,
         fail_fast: bool = True,
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         """Load CAD files referenced in the manifest using plugins."""
         return workflow_service.run_workflow(
             repo_path=Path(repo_path),

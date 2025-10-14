@@ -9,7 +9,7 @@ import platform
 import sys
 import tempfile
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.panel import Panel
@@ -62,7 +62,7 @@ def main(
     quiet: QuietOption = False,
     plain: PlainOption = False,
     version: Annotated[
-        Optional[bool],
+        bool | None,
         typer.Option(
             "--version", callback=version_callback, help="Show version and exit"
         ),

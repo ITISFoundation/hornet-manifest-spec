@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from hornet_flow.logging_utils import log_lifespan
 from hornet_flow.plugins import get_default_plugin, get_plugin
@@ -22,16 +21,16 @@ class PluginProcessingError(Exception):
 class ManifestProcessor:
     """Orchestrates the processing of manifest components through plugins."""
 
-    def __init__(self, plugin_name: Optional[str], logger: logging.Logger):
+    def __init__(self, plugin_name: str | None, logger: logging.Logger):
         self.logger = logger
         # plugin
         self.plugin_name = plugin_name or get_default_plugin()
         self.plugin_class = get_plugin(self.plugin_name)
-        self.plugin_instance: Optional[HornetFlowPlugin] = None
+        self.plugin_instance: HornetFlowPlugin | None = None
 
     def _prepare_release_data(
-        self, repo_path: Path, repo_release: Optional[Release]
-    ) -> Optional[Release]:
+        self, repo_path: Path, repo_release: Release | None
+    ) -> Release | None:
         """Get or extract release information."""
         if repo_release:
             return repo_release
@@ -46,9 +45,9 @@ class ManifestProcessor:
         manifest_path: Path,
         repo_path: Path,
         fail_fast: bool = False,
-        type_filter: Optional[str] = None,
-        name_filter: Optional[str] = None,
-        repo_release: Optional[Release] = None,
+        type_filter: str | None = None,
+        name_filter: str | None = None,
+        repo_release: Release | None = None,
     ) -> tuple[int, int]:
         """
         Process a manifest file using the configured plugin.
@@ -127,8 +126,8 @@ class ManifestProcessor:
         manifest_path: Path,
         repo_path: Path,
         fail_fast: bool,
-        type_filter: Optional[str],
-        name_filter: Optional[str],
+        type_filter: str | None,
+        name_filter: str | None,
     ) -> tuple[int, int]:
         """Process individual components from manifest data."""
         success_count = 0
@@ -155,8 +154,8 @@ class ManifestProcessor:
     def _should_process_component(
         self,
         component: Component,
-        type_filter: Optional[str],
-        name_filter: Optional[str],
+        type_filter: str | None,
+        name_filter: str | None,
     ) -> bool:
         """Check if component should be processed based on filters."""
         if type_filter and component.type != type_filter:

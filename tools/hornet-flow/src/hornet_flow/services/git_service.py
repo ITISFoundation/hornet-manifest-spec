@@ -6,12 +6,11 @@ cloning, version checking, and repository information extraction.
 
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 from ..model import Release
 
 
-def check_git_version() -> Optional[str]:
+def check_git_version() -> str | None:
     """
     Check if git is installed and return its version string.
 

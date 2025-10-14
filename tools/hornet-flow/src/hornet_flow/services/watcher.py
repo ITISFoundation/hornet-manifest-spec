@@ -7,7 +7,6 @@ hornet-flow workflow processing when files are detected and stable.
 import logging
 import time
 from pathlib import Path
-from typing import Optional
 
 from watchfiles import watch
 
@@ -38,7 +37,7 @@ def _check_file_stability(file_path: Path, stability_seconds: float = 2.0) -> bo
 
         final_size = file_path.stat().st_size
         return initial_size == final_size and initial_size > 0
-    except (OSError, IOError) as e:
+    except OSError as e:
         _logger.error("Error checking file stability for %s: %s", file_path, e)
         return False
 
@@ -46,11 +45,11 @@ def _check_file_stability(file_path: Path, stability_seconds: float = 2.0) -> bo
 def _process_metadata_file(
     metadata_path: Path,
     work_dir: Path,
-    plugin: Optional[str] = None,
-    type_filter: Optional[str] = None,
-    name_filter: Optional[str] = None,
+    plugin: str | None = None,
+    type_filter: str | None = None,
+    name_filter: str | None = None,
     fail_fast: bool = False,
-    event_dispatcher: Optional[workflow_service.EventDispatcher] = None,
+    event_dispatcher: workflow_service.EventDispatcher | None = None,
 ) -> tuple[int, int]:
     """Process a metadata file using the workflow service.
 
@@ -90,12 +89,12 @@ def watch_for_metadata(
     inputs_dir: Path,
     work_dir: Path,
     once: bool = True,
-    plugin: Optional[str] = None,
-    type_filter: Optional[str] = None,
-    name_filter: Optional[str] = None,
+    plugin: str | None = None,
+    type_filter: str | None = None,
+    name_filter: str | None = None,
     fail_fast: bool = False,
     stability_seconds: float = 2.0,
-    event_dispatcher: Optional[workflow_service.EventDispatcher] = None,
+    event_dispatcher: workflow_service.EventDispatcher | None = None,
 ) -> None:
     """Watch for metadata.json files and process them.
 
