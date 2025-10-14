@@ -191,8 +191,10 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
     )
 
     # Report results
-    print(
-        f"CAD manifest: Found {len(cad_existing_files)} existing files, {len(cad_missing_files)} missing files"
+    logging.info(
+        "CAD manifest: Found %d existing files, %d missing files",
+        len(cad_existing_files),
+        len(cad_missing_files),
     )
 
     # Assert no missing files - all referenced files should exist
