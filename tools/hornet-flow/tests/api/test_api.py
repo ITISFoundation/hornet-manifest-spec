@@ -49,7 +49,7 @@ def test_api_info() -> None:
     assert isinstance(info["plugins"], dict)
     assert isinstance(info["configuration"], dict)
     assert isinstance(info["environment"], dict)
-    
+
     # Verify configuration structure
     config = info["configuration"]
     assert "package_location" in config
