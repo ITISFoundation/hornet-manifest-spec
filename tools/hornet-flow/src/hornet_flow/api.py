@@ -6,14 +6,18 @@ without CLI dependencies. Functions raise core domain exceptions only.
 
 import contextlib
 import logging
+import os
+import platform
 import subprocess
+import sys
 import tempfile
 from functools import wraps
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any, Final, TypeAlias
 
 import jsonschema
 
+import hornet_flow
 from .async_utils import AsyncBridge
 from .exceptions import (
     ApiFileNotFoundError,
@@ -22,11 +26,15 @@ from .exceptions import (
     ApiValidationError,
 )
 from .model import Release
+from .plugins import discover_plugins, get_default_plugin
 from .services import git_service, manifest_service, watcher, workflow_service
 from .services.processor import ManifestProcessor
 from .services.workflow_service import EventDispatcher, WorkflowEvent
 
 _logger = logging.getLogger(__name__)
+
+# Version constant
+__version__: Final[str] = "0.2.0"
 
 assert WorkflowEvent  # nosec
 assert AsyncBridge  # nosec
@@ -339,3 +347,64 @@ class HornetFlowAPI:
         self.repo = RepoAPI()
         self.manifest = ManifestAPI()
         self.cad = CadAPI()
+
+    def info(self) -> dict[str, str | bool | dict[str, Any]]:
+        """Get system information including version, Python version, and Git availability.
+
+        Returns:
+            Dictionary containing version information and system status.
+        """
+        # Get Git version
+        git_version = git_service.check_git_version()
+        
+        # Get default plugin
+        default_plugin = get_default_plugin()
+        
+        # Get plugins information
+        plugins_info = {}
+        try:
+            plugins = discover_plugins()
+            for plugin_name, plugin_class in plugins.items():
+                try:
+                    description = plugin_class.__doc__ or "No description available"
+                    if description:
+                        description = description.split("\n")[0].strip()
+                except Exception:  # pylint: disable=broad-exception-caught
+                    description = "No description available"
+                
+                plugins_info[plugin_name] = {
+                    "description": description,
+                    "is_default": plugin_name == default_plugin,
+                }
+        except Exception:  # pylint: disable=broad-exception-caught
+            plugins_info = {}
+        
+        # Get configuration details
+        package_path = Path(hornet_flow.__file__).parent
+        plugin_dir = package_path / "plugins"
+        
+        config_info = {
+            "package_location": str(package_path),
+            "plugin_directory": str(plugin_dir),
+            "plugin_directory_exists": plugin_dir.exists(),
+            "temp_directory": tempfile.gettempdir(),
+        }
+        
+        # Get relevant environment variables
+        env_info = {}
+        env_vars = ["HOME", "TMPDIR"]
+        for var in env_vars:
+            value = os.environ.get(var)
+            if value is not None:
+                env_info[var] = value
+
+        return {
+            "version": __version__,
+            "python_version": sys.version.split()[0],
+            "platform": platform.platform(),
+            "git_version": git_version if git_version else False,
+            "default_plugin": default_plugin,
+            "plugins": plugins_info,
+            "configuration": config_info,
+            "environment": env_info,
+        }
