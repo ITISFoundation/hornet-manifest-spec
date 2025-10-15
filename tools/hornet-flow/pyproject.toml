@@ -41,9 +41,6 @@ disable = [
   "missing-function-docstring"
 ]
 
-
-
-
 [tool.ruff.lint]
 select = ["I"]  # enable isort rules
 isort.known-first-party = ["hornet_flow"]  # adjust to your own package
