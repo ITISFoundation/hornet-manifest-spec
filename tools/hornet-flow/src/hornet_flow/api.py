@@ -13,11 +13,13 @@ import sys
 import tempfile
 from functools import wraps
 from pathlib import Path
-from typing import Any, Final, TypeAlias
+from typing import Any, TypeAlias
 
 import jsonschema
 
 import hornet_flow
+
+from ._version import __version__
 from .async_utils import AsyncBridge
 from .exceptions import (
     ApiFileNotFoundError,
@@ -32,9 +34,6 @@ from .services.processor import ManifestProcessor
 from .services.workflow_service import EventDispatcher, WorkflowEvent
 
 _logger = logging.getLogger(__name__)
-
-# Version constant
-__version__: Final[str] = "0.2.0"
 
 assert WorkflowEvent  # nosec
 assert AsyncBridge  # nosec
@@ -356,10 +355,10 @@ class HornetFlowAPI:
         """
         # Get Git version
         git_version = git_service.check_git_version()
-        
+
         # Get default plugin
         default_plugin = get_default_plugin()
-        
+
         # Get plugins information
         plugins_info = {}
         try:
@@ -371,25 +370,25 @@ class HornetFlowAPI:
                         description = description.split("\n")[0].strip()
                 except Exception:  # pylint: disable=broad-exception-caught
                     description = "No description available"
-                
+
                 plugins_info[plugin_name] = {
                     "description": description,
                     "is_default": plugin_name == default_plugin,
                 }
         except Exception:  # pylint: disable=broad-exception-caught
             plugins_info = {}
-        
+
         # Get configuration details
         package_path = Path(hornet_flow.__file__).parent
         plugin_dir = package_path / "plugins"
-        
+
         config_info = {
             "package_location": str(package_path),
             "plugin_directory": str(plugin_dir),
             "plugin_directory_exists": plugin_dir.exists(),
             "temp_directory": tempfile.gettempdir(),
         }
-        
+
         # Get relevant environment variables
         env_info = {}
         env_vars = ["HOME", "TMPDIR"]

@@ -19,6 +19,7 @@ import hornet_flow
 from hornet_flow.plugins import discover_plugins, get_default_plugin
 from hornet_flow.services import git_service
 
+from ._version import __version__
 from .cli_commands import (
     PlainOption,
     QuietOption,
@@ -31,8 +32,6 @@ from .cli_commands import (
     workflow_watch_cmd,
 )
 from .cli_state import app_console, app_logger, app_state, merge_global_options
-
-__version__ = "0.2.0"
 
 
 def version_callback(value: bool):
