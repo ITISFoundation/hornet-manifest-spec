@@ -4,6 +4,11 @@
 # pylint: disable=too-many-arguments
 
 import asyncio
+import functools
+import logging
+import time
+
+import pytest
 
 from hornet_flow.async_utils import AsyncBridge
 from hornet_flow.services.workflow_service import EventDispatcher, WorkflowEvent
@@ -23,12 +28,14 @@ def _fake_sync_function_that_uses_event_dispatcher(
     event_dispatcher.register(WorkflowEvent.MANIFESTS_READY, on_app_ready)
 
     # Trigger the event to see if callback fires
-    event_dispatcher.trigger(WorkflowEvent.MANIFESTS_READY)
+    for event in WorkflowEvent:
+        event_dispatcher.trigger(event, data="test", extra=event.name)
+        time.sleep(0.1)  # Give some time for the event to be processed
 
     return result
 
 
-async def test_async_bridge_coordination():
+async def test_async_bridge_coordination(caplog: pytest.LogCaptureFixture):
     event_loop = asyncio.get_running_loop()
     app_ready_event = asyncio.Event()
 
@@ -37,35 +44,52 @@ async def test_async_bridge_coordination():
     # Create EventDispatcher that will be passed to sync function
     event_dispatcher = EventDispatcher()
 
-    # Register AsyncBridge callback with EventDispatcher
-    event_dispatcher.register(
-        WorkflowEvent.MANIFESTS_READY, async_bridge.wait_for_app_ready_sync
-    )
+    # Enable debug logging for this test
+    with caplog.at_level(logging.INFO):
+        # Log all events for verification
+        def _log_step(event_name, **kwargs):
+            logging.info("Event: %s, Data: %s", event_name, kwargs)
 
-    # Track execution state
-    sync_function_completed = False
-    sync_function_result = None
+        for event in WorkflowEvent:
+            event_dispatcher.register(event, functools.partial(_log_step, event.name))
 
-    async def _fake_background_task():
-        nonlocal sync_function_completed, sync_function_result
-        sync_function_result = await asyncio.to_thread(
-            _fake_sync_function_that_uses_event_dispatcher, event_dispatcher
+        # Register AsyncBridge callback with EventDispatcher
+        event_dispatcher.register(
+            WorkflowEvent.MANIFESTS_READY, async_bridge.wait_for_app_ready_sync
         )
-        sync_function_completed = True
 
-    # Start the sync function (it will wait for app ready event)
-    task = asyncio.create_task(_fake_background_task())
+        # Track execution state
+        sync_function_completed = False
+        sync_function_result = None
 
-    # Give it a moment to start and register callback
-    await asyncio.sleep(0.1)
-    assert not sync_function_completed
+        async def _fake_background_task():
+            nonlocal sync_function_completed, sync_function_result
+            sync_function_result = await asyncio.to_thread(
+                _fake_sync_function_that_uses_event_dispatcher, event_dispatcher
+            )
+            sync_function_completed = True
 
-    # Set the app ready event (simulating app startup completion)
-    app_ready_event.set()
+        # Start the sync function (it will wait for app ready event)
+        task = asyncio.create_task(_fake_background_task())
 
-    # Wait for sync function to complete
-    await asyncio.wait_for(task, timeout=1.0)
+        # Give it a moment to start and register callback
+        await asyncio.sleep(0.1)
+        assert not sync_function_completed
 
-    # Verify the sync function completed successfully
-    assert sync_function_completed
-    assert sync_function_result == "ready"
+        # Set the app ready event (simulating app startup completion)
+        app_ready_event.set()
+
+        # Wait for sync function to complete
+        await asyncio.wait_for(task, timeout=1.0)
+
+        # Verify the sync function completed successfully
+        assert sync_function_completed
+        assert sync_function_result == "ready"
+
+        # Verify that the MANIFESTS_READY event was logged
+        manifests_ready_logs = [
+            record for record in caplog.records if "MANIFESTS_READY" in record.message
+        ]
+        assert len(manifests_ready_logs) > 0, "MANIFESTS_READY event should be logged"
+
+        assert len(caplog.records) == len(WorkflowEvent)

@@ -14,6 +14,7 @@ from typing import Any, TypeAlias
 
 import jsonschema
 
+from .async_utils import AsyncBridge
 from .exceptions import (
     ApiFileNotFoundError,
     ApiInputValueError,
@@ -28,8 +29,10 @@ from .services.workflow_service import EventDispatcher, WorkflowEvent
 _logger = logging.getLogger(__name__)
 
 assert WorkflowEvent  # nosec
+assert AsyncBridge  # nosec
 
 __all__: tuple[str, ...] = (
+    "AsyncBridge",
     "EventDispatcher",
     "WorkflowEvent",
 )
@@ -118,8 +121,8 @@ class WorkflowAPI:
     @handle_service_exceptions("watch operation")
     def watch(
         self,
-        inputs_dir: str,
-        work_dir: str,
+        inputs_dir: str | Path,
+        work_dir: str | Path,
         once: bool = False,
         plugin: str | None = None,
         type_filter: str | None = None,
