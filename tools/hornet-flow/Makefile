@@ -52,6 +52,9 @@ install-types: venv
 	@echo "Installing typing dependencies..."
 	uv add --group dev pyright
 
+.PHONY: version
+version: ## Shows package version (SEE https://docs.astral.sh/uv/guides/package/#updating-your-version)
+	uv version
 
 # Build and type stubs
 .PHONY: build build-type-stubs type-stubs
