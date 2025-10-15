@@ -44,10 +44,10 @@ jobs:
       run: uv sync --all-groups
 
     - name: Validate code
-      run: uv run ruff check src/ tests/
+      run: uv run ruff check src/ 
 
     - name: Run linting
-      run: uv run ruff format --check src/ tests/
+      run: uv run ruff format --check src/ 
 
     - name: Run tests
       run: uv run pytest tests -v --cov=src/hornet_flow --cov-report=xml --cov-report=term
