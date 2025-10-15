@@ -1,3 +1,9 @@
+# CI uses raw uv commands instead of Makefile recipes for:
+# - Explicit command visibility in CI logs
+# - No Make dependency required in CI environment
+# - Better error reporting and debugging
+# - Alignment with uv-first workflow approach
+
 name: Hornet Flow CI
 
 on:
@@ -38,15 +44,13 @@ jobs:
       run: uv sync --all-groups
 
     - name: Validate code
-      run: uv run ruff check src/ test.py
-      continue-on-error: true
+      run: uv run ruff check src/ 
 
     - name: Run linting
-      run: uv run ruff format --check src/ test.py
-      continue-on-error: true
+      run: uv run ruff format --check src/ 
 
     - name: Run tests
-      run: uv run pytest test.py -v
+      run: uv run pytest tests -v --cov=src/hornet_flow --cov-report=xml --cov-report=term
 
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.12'

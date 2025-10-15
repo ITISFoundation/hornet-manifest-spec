@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, List, Literal, TypeAlias
+from typing import Any, Literal, TypeAlias
 
 import jsonschema
 
@@ -21,11 +21,11 @@ class Component:
     id: IDStr
     type: Literal["assembly", "part"]
     description: str
-    files: List[File]
-    components: List["Component"] = field(default_factory=list)  # Only for assemblies
+    files: list[File]
+    components: list["Component"] = field(default_factory=list)  # Only for assemblies
 
     # Extras
-    parent_path: List[IDStr] = field(
+    parent_path: list[IDStr] = field(
         default_factory=list
     )  # Path to parent component from root e.g. ["compA", "subCompB"]
 

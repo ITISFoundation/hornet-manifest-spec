@@ -7,8 +7,10 @@ by both the API layer and other services like the watcher.
 import logging
 import shutil
 import tempfile
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
+from enum import Enum
 from pathlib import Path
-from typing import Optional, Tuple
 
 from ..model import Release
 from . import git_service, manifest_service, metadata_service
@@ -17,17 +19,89 @@ from .processor import ManifestProcessor
 _logger = logging.getLogger(__name__)
 
 
+@contextmanager
+def _local_repository_dir(
+    repo_url: str, work_dir: Path | None = None
+) -> Generator[Path, None, None]:
+    """Create persistent directory for the cloned repo that is cleaned up only on failure
+
+    The name of the folder is derived from the repository name.
+
+    Args:
+        repo_url: Repository URL to extract name from
+        work_dir: Working directory for temporary files
+
+    Yields:
+        Path to the target repository directory
+    """
+    work_path = work_dir or Path(tempfile.gettempdir())
+
+    # Create persistent directory that is cleaned up only on failure
+    temp_dir = tempfile.mkdtemp(prefix="hornet_", suffix="_repo", dir=work_path)
+    temp_path = Path(temp_dir)
+
+    # Deduce repository name from repo_url
+    repo_name = Path(repo_url.rstrip("/").split("/")[-1]).stem
+    target_repo_path = temp_path / repo_name
+
+    try:
+        yield target_repo_path
+    except Exception:
+        # Clean up temporary directory only on failure
+        if temp_path.exists():
+            shutil.rmtree(temp_path)
+        raise
+
+
+class WorkflowEvent(Enum):
+    WORKFLOW_STARTED = (
+        "workflow_started"  # Triggered at workflow start after validation
+    )
+    REPOSITORY_READY = (
+        "repository_ready"  # Triggered when repository is available locally
+    )
+    MANIFESTS_READY = (
+        "manifests_ready"  # Triggered when manifests are validated and ready to process
+    )
+    WORKFLOW_COMPLETED = (
+        "workflow_completed"  # Triggered at workflow end with success/failure status
+    )
+
+
+class EventDispatcher:
+    """Simple event dispatcher for workflow events."""
+
+    def __init__(self):
+        self._callbacks: dict[WorkflowEvent, list[Callable]] = {}
+
+    def register(self, event: WorkflowEvent, callback: Callable) -> None:
+        """Register a callback for a specific event."""
+        if event not in self._callbacks:
+            self._callbacks[event] = []
+        self._callbacks[event].append(callback)
+
+    def trigger(self, event: WorkflowEvent, **kwargs) -> None:
+        """Trigger all callbacks for a specific event."""
+        if event in self._callbacks:
+            for callback in self._callbacks[event]:
+                try:
+                    callback(**kwargs)
+                except Exception as e:
+                    _logger.error(f"Error in event callback for {event.value}: {e}")
+
+
 def run_workflow(
-    metadata_file_path: Optional[Path] = None,
-    repo_url: Optional[str] = None,
+    metadata_file_path: Path | None = None,
+    repo_url: str | None = None,
     repo_commit: str = "main",
-    repo_path: Optional[Path] = None,
-    work_dir: Optional[Path] = None,
+    repo_path: Path | None = None,
+    work_dir: Path | None = None,
     fail_fast: bool = False,
-    plugin: Optional[str] = None,
-    type_filter: Optional[str] = None,
-    name_filter: Optional[str] = None,
-) -> Tuple[int, int]:
+    plugin: str | None = None,
+    type_filter: str | None = None,
+    name_filter: str | None = None,
+    event_dispatcher: EventDispatcher | None = None,
+) -> tuple[int, int]:
     """Run a complete workflow to process hornet manifests.
 
     Args:
@@ -40,6 +114,7 @@ def run_workflow(
         plugin: Plugin to use for processing
         type_filter: Filter components by type
         name_filter: Filter components by name
+        event_dispatcher: Optional event dispatcher for workflow events
 
     Returns:
         Tuple of (success_count, total_count)
@@ -57,61 +132,90 @@ def run_workflow(
     if not metadata_file_path and not repo_url and not repo_path:
         raise ValueError("Must specify either metadata_file, repo_url, or repo_path")
 
-    release = None
-    if metadata_file_path:
-        # Extract release info
-        release = metadata_service.load_metadata_release(str(metadata_file_path))
-        repo_url = release.url
-        repo_commit = release.marker
-
-    if repo_path:
-        # Repo in place
-        return _process_manifests(
-            repo_path, fail_fast, plugin, type_filter, name_filter, release
+    # Trigger workflow started event
+    if event_dispatcher:
+        event_dispatcher.trigger(
+            WorkflowEvent.WORKFLOW_STARTED,
+            metadata_file_path=metadata_file_path,
+            repo_url=repo_url,
+            repo_commit=repo_commit,
+            repo_path=repo_path,
+            plugin=plugin,
+            type_filter=type_filter,
+            name_filter=name_filter,
         )
 
-    else:
-        assert repo_url  # Already validated above
+    success_count = 0
+    total_count = 0
+    workflow_succeeded = False
+    workflow_exception = None
 
-        # Clone repository
-        work_path = work_dir or Path(tempfile.gettempdir())
+    try:
+        release = None
+        # 1. Extract release info if needed
+        if metadata_file_path:
+            release = metadata_service.load_metadata_release(str(metadata_file_path))
+            repo_url = release.url
+            repo_commit = release.marker
 
-        # Create persistent directory for manual cleanup
-        temp_dir = tempfile.mkdtemp(prefix="hornet_", suffix="_repo", dir=work_path)
-        temp_path = Path(temp_dir)
-        # Deduce repository name from repo_url
-        repo_name = Path(repo_url.rstrip("/").split("/")[-1]).stem
-        target_repo_path = temp_path / repo_name
+        # 2. Clone repository if needed
+        if not repo_path:
+            assert repo_url  # Already validated above
 
-        try:
-            # Clone repo
-            git_service.clone_repository(repo_url, repo_commit, target_repo_path)
+            with _local_repository_dir(repo_url, work_dir) as target_repo_path:
+                git_service.clone_repository(repo_url, repo_commit, target_repo_path)
 
-            # Process manifests
-            return _process_manifests(
-                target_repo_path,
-                fail_fast,
-                plugin,
-                type_filter,
-                name_filter,
-                release,
+                repo_path = target_repo_path
+
+        if event_dispatcher:
+            event_dispatcher.trigger(
+                WorkflowEvent.REPOSITORY_READY,
+                repo_path=repo_path,
+                repo_url=repo_url,
+                repo_commit=repo_commit,
             )
 
-        except Exception:
-            # Clean up on error
-            if temp_path.exists():
-                shutil.rmtree(temp_path)
-            raise
+        # 3. Process manifests
+        success_count, total_count = _process_manifests(
+            repo_path,
+            fail_fast,
+            plugin,
+            type_filter,
+            name_filter,
+            release,
+            event_dispatcher,
+        )
+
+        workflow_succeeded = True
+
+    except Exception as e:
+        workflow_exception = e
+        raise
+
+    finally:
+        # Trigger workflow completed event
+        if event_dispatcher:
+            event_dispatcher.trigger(
+                WorkflowEvent.WORKFLOW_COMPLETED,
+                success_count=success_count,
+                total_count=total_count,
+                workflow_succeeded=workflow_succeeded,
+                workflow_exception=workflow_exception,
+                repo_path=repo_path,
+            )
+
+    return success_count, total_count
 
 
 def _process_manifests(
     repo_path: Path,
     fail_fast: bool = False,
-    plugin_name: Optional[str] = None,
-    type_filter: Optional[str] = None,
-    name_filter: Optional[str] = None,
-    release: Optional[Release] = None,
-) -> Tuple[int, int]:
+    plugin_name: str | None = None,
+    type_filter: str | None = None,
+    name_filter: str | None = None,
+    release: Release | None = None,
+    event_dispatcher: EventDispatcher | None = None,
+) -> tuple[int, int]:
     """Process manifests found in repository."""
     # 1. Find hornet manifests
     cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_path)
@@ -145,7 +249,17 @@ def _process_manifests(
         for error in validation_errors:
             _logger.error(error)
 
-    # 3. Process CAD manifest with plugin
+    # 3. Trigger manifests ready event
+    if event_dispatcher:
+        event_dispatcher.trigger(
+            WorkflowEvent.MANIFESTS_READY,
+            repo_path=repo_path,
+            cad_manifest=cad_manifest,
+            sim_manifest=sim_manifest,
+            release=release,
+        )
+
+    # 4. Process CAD manifest with plugin
     if cad_manifest:
         return _process_manifest_with_plugin(
             cad_manifest,
@@ -162,11 +276,11 @@ def _process_manifests(
 def _process_manifest_with_plugin(
     cad_manifest: Path,
     repo_path: Path,
-    plugin_name: Optional[str] = None,
-    type_filter: Optional[str] = None,
-    name_filter: Optional[str] = None,
-    repo_release: Optional[Release] = None,
-) -> Tuple[int, int]:
+    plugin_name: str | None = None,
+    type_filter: str | None = None,
+    name_filter: str | None = None,
+    repo_release: Release | None = None,
+) -> tuple[int, int]:
     """Process CAD manifest using specified plugin."""
     processor = ManifestProcessor(plugin_name, _logger)
 

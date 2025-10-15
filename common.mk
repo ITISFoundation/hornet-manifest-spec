@@ -15,3 +15,11 @@ clean_common:
 	else \
 		echo "✓ Nothing to clean"; \
 	fi
+
+.PHONY: info
+info: ## displays tools versions
+	@echo ' awk           : $(shell awk -W version 2>&1 | head -n 1)'
+	@echo ' make          : $(shell make --version 2>&1 | head -n 1)'
+	@echo ' python        : $(shell python3 --version) ($(shell which python3))'
+	@echo ' uv            : $(shell uv --version 2> /dev/null || echo ERROR uv missing)'
+	@echo ' ubuntu        : $(shell lsb_release --description --short 2> /dev/null | tail || echo ERROR Not an Ubuntu OS )'

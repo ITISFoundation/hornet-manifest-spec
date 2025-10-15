@@ -1,6 +1,6 @@
 # hornet-flow
 
-A CLI tool for loading and processing hornet manifests from git repositories.
+A CLI tool for loading and processing hornet manifests from git repositories. It offers both a command line (CLI) and a programatic interfaces (API)
 
 ## Installation
 
@@ -8,7 +8,7 @@ A CLI tool for loading and processing hornet manifests from git repositories.
 uv pip install "git+https://github.com/ITISFoundation/hornet-manifest-spec.git@main#subdirectory=tools/hornet-flow"
 ```
 
-## Usage
+## CLI Usage
 
 ### Basic Commands
 
@@ -270,13 +270,312 @@ hornet-flow manifest validate \
   --quiet
 ```
 
-## Development
+## Programmatic API Usage
 
-See the Makefile for development commands:
+In addition to the CLI, hornet-flow provides a clean programmatic API for integration into other applications:
+
+### Class-based API (Recommended)
+
+```python
+from hornet_flow.api import HornetFlowAPI
+
+# Create API instance
+api = HornetFlowAPI()
+
+# Workflow operations
+success_count, total_count = api.workflow.run(
+    repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+    plugin="osparc",
+    fail_fast=True
+)
+
+# Repository operations
+repo_path = api.repo.clone(
+    repo_url="https://github.com/CARSSCenter/Sub-mm-Parylene-Cuff-Electrode",
+    dest="/tmp/my-repo",
+    commit="main"
+)
+
+# Manifest operations
+cad_valid, sim_valid = api.manifest.validate("/path/to/repo")
+manifest_data = api.manifest.show("/path/to/repo", manifest_type="cad")
+
+# CAD operations
+success_count, total_count = api.cad.load(
+    repo_path="/path/to/repo",
+    plugin="debug",
+    type_filter="assembly"
+)
+```
+
+### Event System
+
+The API supports an event system that allows you to hook into specific workflow stages:
+
+```python
+from hornet_flow.api import HornetFlowAPI, EventDispatcher, WorkflowEvent
+
+# Create event dispatcher
+dispatcher = EventDispatcher()
+
+# Register callback for before manifest processing
+def check_external_readiness(**kwargs):
+    repo_path = kwargs['repo_path']
+    print(f"Checking external system readiness for repo: {repo_path}")
+
+    # Your custom logic here - e.g., check if external service is ready
+    # You can access: repo_path, cad_manifest, sim_manifest, release
+    cad_manifest = kwargs.get('cad_manifest')
+    sim_manifest = kwargs.get('sim_manifest')
+    release = kwargs.get('release')
+
+    print(f"Found CAD manifest: {cad_manifest}")
+    print(f"Found SIM manifest: {sim_manifest}")
+
+    # Raise an exception to stop the workflow if external system not ready
+    # raise RuntimeError("External system not ready")
+
+# Register the callback
+dispatcher.register(WorkflowEvent.MANIFEST_READY, check_external_readiness)
+
+# Create API instance
+api = HornetFlowAPI()
+
+# Run workflow with event dispatcher
+success_count, total_count = api.workflow.run(
+    repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+    plugin="osparc",
+    event_dispatcher=dispatcher
+)
+```
+
+**Multiple Event Handlers:**
+```python
+from hornet_flow.api import HornetFlowAPI, EventDispatcher, WorkflowEvent
+import requests
+
+dispatcher = EventDispatcher()
+
+# Handler 1: Check external service availability
+def check_service_health(**kwargs):
+    try:
+        response = requests.get("http://external-service/health", timeout=5)
+        if response.status_code != 200:
+            raise RuntimeError("External service is not healthy")
+        print("✓ External service is ready")
+    except requests.RequestException as e:
+        raise RuntimeError(f"Cannot reach external service: {e}")
+
+# Handler 2: Log workflow progress
+def log_workflow_progress(**kwargs):
+    repo_path = kwargs['repo_path']
+    print(f"📋 About to process manifests in: {repo_path}")
+
+# Handler 3: Send notification
+def send_notification(**kwargs):
+    repo_path = kwargs['repo_path']
+    # Send to monitoring system, Slack, etc.
+    print(f"🔔 Starting manifest processing for {repo_path}")
+
+# Register all handlers
+dispatcher.register(WorkflowEvent.MANIFEST_READY, check_service_health)
+dispatcher.register(WorkflowEvent.MANIFEST_READY, log_workflow_progress)
+dispatcher.register(WorkflowEvent.MANIFEST_READY, send_notification)
+
+# Run workflow
+api = HornetFlowAPI()
+success_count, total_count = api.workflow.run(
+    repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+    event_dispatcher=dispatcher
+)
+```
+
+**Conditional Workflow Control:**
+```python
+from hornet_flow.api import HornetFlowAPI, EventDispatcher, WorkflowEvent
+import os
+import time
+
+dispatcher = EventDispatcher()
+
+def wait_for_external_system(**kwargs):
+    """Wait for external system to be ready before processing."""
+    max_attempts = 10
+    attempt = 0
+
+    while attempt < max_attempts:
+        # Check if external system is ready (e.g., file exists, service responds)
+        if os.path.exists("/tmp/external_system_ready.flag"):
+            print("✓ External system is ready, proceeding with manifest processing")
+            return
+
+        attempt += 1
+        print(f"⏳ Waiting for external system... (attempt {attempt}/{max_attempts})")
+        time.sleep(2)
+
+    # If we get here, external system is not ready
+    raise RuntimeError("External system not ready after maximum wait time")
+
+dispatcher.register(WorkflowEvent.MANIFEST_READY, wait_for_external_system)
+
+api = HornetFlowAPI()
+success_count, total_count = api.workflow.run(
+    repo_path="/path/to/repo",
+    event_dispatcher=dispatcher
+)
+```
+
+### API Examples
+
+**Complete workflow with error handling:**
+```python
+from hornet_flow.api import HornetFlowAPI
+from hornet_flow.exceptions import ApiProcessingError, ApiValidationError
+
+api = HornetFlowAPI()
+
+try:
+    # Clone repository
+    repo_path = api.repo.clone(
+        repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+        dest="/tmp/electrodes"
+    )
+
+    # Validate manifests
+    cad_valid, sim_valid = api.manifest.validate(str(repo_path))
+    print(f"CAD valid: {cad_valid}, SIM valid: {sim_valid}")
+
+    # Run workflow
+    success_count, total_count = api.workflow.run(
+        repo_path=str(repo_path),
+        plugin="osparc",
+        fail_fast=True
+    )
+
+    print(f"Processed {success_count}/{total_count} components")
+
+except ApiValidationError as e:
+    print(f"Validation failed: {e}")
+except ApiProcessingError as e:
+    print(f"Processing failed: {e}")
+```
+
+**Automated file watching:**
+```python
+from hornet_flow.api import HornetFlowAPI
+from hornet_flow.exceptions import ApiFileNotFoundError, ApiInputValueError
+import os
+from pathlib import Path
+
+api = HornetFlowAPI()
+
+# Get directories from environment or use defaults
+inputs_dir = os.getenv("INPUTS_DIR", "/shared/inputs")
+work_dir = os.getenv("WORK_DIR", "/shared/work")
+
+try:
+    # Watch for metadata.json files continuously
+    api.workflow.watch(
+        inputs_dir=inputs_dir,
+        work_dir=str(Path(work_dir) / "hornet-flows"),
+        once=False,  # Continuous watching
+        plugin="osparc",
+        type_filter="assembly",
+        fail_fast=False,
+        stability_seconds=3.0
+    )
+
+except KeyboardInterrupt:
+    print("Watcher stopped by user")
+except ApiFileNotFoundError as e:
+    print(f"Directory not found: {e}")
+except ApiInputValueError as e:
+    print(f"Invalid input: {e}")
+except Exception as e:
+    print(f"Watcher failed: {e}")
+```
+
+**Single-time processing mode**
+
+```python
+from hornet_flow.api import HornetFlowAPI
+import os
+
+api = HornetFlowAPI()
+
+# Process one file and exit (useful for Docker containers)
+try:
+    api.workflow.watch(
+        inputs_dir=os.getenv("INPUTS_DIR", "/shared/inputs"),
+        work_dir=os.getenv("WORK_DIR", "/shared/work"),
+        once=True,  # Exit after processing one file
+        plugin="osparc",
+        fail_fast=True,
+        stability_seconds=2.0
+    )
+    print("Successfully processed one metadata file")
+
+except Exception as e:
+    print(f"Processing failed: {e}")
+    exit(1)
+```
+
+**Batch processing multiple repositories:**
+```python
+from hornet_flow.api import HornetFlowAPI
+
+api = HornetFlowAPI()
+
+repositories = [
+    "https://github.com/COSMIIC-Inc/Implantables-Electrodes",
+    "https://github.com/CARSSCenter/Sub-mm-Parylene-Cuff-Electrode"
+]
+
+for repo_url in repositories:
+    try:
+        # Process each repository
+        success_count, total_count = api.workflow.run(
+            repo_url=repo_url,
+            plugin="debug",
+            work_dir="/tmp/batch-processing"
+        )
+        print(f"{repo_url}: {success_count}/{total_count} components processed")
+    except Exception as e:
+        print(f"Failed to process {repo_url}: {e}")
+```
+
+**Working with existing repositories:**
+```python
+from hornet_flow.api import HornetFlowAPI
+
+api = HornetFlowAPI()
+
+# Show manifest contents
+manifest_data = api.manifest.show("/path/to/local/repo", manifest_type="both")
+
+if "cad" in manifest_data:
+    print("CAD Manifest:")
+    print(manifest_data["cad"])
+
+if "sim" in manifest_data:
+    print("SIM Manifest:")
+    print(manifest_data["sim"])
+
+# Load CAD files with filtering
+success_count, total_count = api.cad.load(
+    repo_path="/path/to/local/repo",
+    plugin="osparc",
+    type_filter="assembly",
+    name_filter="electrode"
+)
+```
+
+
+## Development workflow
 
 ```bash
 make help           # Show available targets
 make install-all    # Install all dependencies
-make test          # Run tests
-make lint          # Run linting
+make lint           # Run linting
+make tests          # Run tests
 ```

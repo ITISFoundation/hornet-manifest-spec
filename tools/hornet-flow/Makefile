@@ -1,15 +1,23 @@
-include ../common.mk
+COMMON_MK_PATH := ../../common.mk
 
-.PHONY: test test-unit test-integration lint clean clean-venv install install-dev install-lint install-all install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
+include $(COMMON_MK_PATH)
 
-# Install uv
+# Directory variables
+TYPINGS_DIR := typings
+DIST_DIR := dist
+
+.PHONY: test test-unit test-integration lint clean clean-venv install-uv venv run-example run-dry check-deps validate-code test-coverage dev-setup ci
+
+# Install and build
+.PHONY: install install-dev install-from-git install-lint install-all install-types
 install-uv:
 	@echo "Installing uv..."
 	@curl -LsSf https://astral.sh/uv/install.sh | sh
 	@echo "✓ uv installed. You may need to restart your shell or run 'source ~/.bashrc'"
 
+
 # Virtual environment
-venv: check-deps
+venv: check-deps ## Creates virtual env in .venv
 	@echo "Creating virtual environment..."
 	@if [ ! -d ".venv" ]; then \
 		uv venv; \
@@ -18,34 +26,19 @@ venv: check-deps
 		echo "✓ Virtual environment already exists"; \
 	fi
 
-# Test targets
-test:  ## Run tests
-	@echo "Running all tests..."
-	uv run pytest -v test.py
-
-test-unit:
-	@echo "Running unit tests..."
-	uv run pytest test.py -v -k "not integration" .
-
-test-integration:  ## Run integration tests
-	@echo "Running integration tests..."
-	uv run pytest -v -k "integration"
-
-lint:  ## Run linting
-	@echo "Running code linting..."
-	uv run ruff check .
-	uv run ruff format --check .
-
-
-# Dependencies
+# Install and build
 install: venv
 	@echo "Installing package in editable mode with dependencies..."
 	uv sync
 	@echo "✓ Package installed in editable mode"
 
-install-dev: venv
+install-dev: venv ## Install from local repository
 	@echo "Installing dev dependency group..."
 	uv sync --group dev
+
+
+install-from-git: venv  ## Install from remote gh repository
+	uv pip install "git+https://github.com/ITISFoundation/hornet-manifest-spec.git@main#subdirectory=tools/hornet-flow"
 
 install-lint: venv
 	@echo "Installing lint dependency group..."
@@ -55,7 +48,67 @@ install-all: venv
 	@echo "Installing all dependency groups..."
 	uv sync --all-groups
 
+install-types: venv
+	@echo "Installing typing dependencies..."
+	uv add --group dev pyright
+
+.PHONY: version version-bump
+version: ## Shows package version. Use version-major, version-minor, version-patch to bump
+	uv version
+
+.PHONY: version-%
+version-%: ## Bump version (major, minor, patch)
+	uv version --bump $*
+
+# Build and type stubs
+.PHONY: build build-type-stubs type-stubs
+build:  ## Build the package
+	uv build --out-dir $(DIST_DIR)
+
+.PHONY: type-stubs type-stubs-package
+type-stubs: install-types
+	@echo "Generating type stubs with pyright..."
+	uv run pyright --createstub hornet_flow
+	@echo "✓ Type stubs generated in $(TYPINGS_DIR)/ directory"
+
+build-type-stubs: type-stubs ## Package type stubs for distribution
+	@echo "Creating typeshed-style package..."
+	@mkdir -p $(DIST_DIR)/types-hornet-flow
+	@cp -r $(TYPINGS_DIR)/hornet_flow $(DIST_DIR)/types-hornet-flow/
+	@echo "Creating py.typed marker file..."
+	@touch $(DIST_DIR)/types-hornet-flow/hornet_flow/py.typed
+	@echo "Creating package metadata..."
+	@echo "# Types package for hornet-flow" > $(DIST_DIR)/types-hornet-flow/__init__.py
+	@echo "✓ Type stubs packaged as types-hornet-flow in $(DIST_DIR)/"
+
+# Test targets
+.PHONY: tests tests-unit tests-integration test-coverage
+tests:  ## Run tests
+	@echo "Running all tests..."
+	uv run pytest -v tests
+
+tests-unit:
+	@echo "Running unit tests..."
+	uv run pytest tests -v -k "not integration" .
+
+tests-integration:  ## Run integration tests
+	@echo "Running integration tests..."
+	uv run pytest tests -v -k "integration"
+
+# Lint and code validation
+.PHONY: lint validate-code
+lint:  ## Run linting
+	@echo "Running code linting..."
+	uv run ruff check .
+	uv run ruff format --check .
+
+validate-code:
+	@echo "Validating code with ruff..."
+	uv run ruff check src/ test.py
+	@echo "✓ Code validation passed"
+
 # Example runs for manual testing
+.PHONY: run-example run-clone-example run-validate-example run-show-example
 run-example:
 	@echo "Running workflow with example metadata..."
 	hornet-flow workflow run --metadata-file examples/portal-device-metadata.json --work-dir /tmp/hornet-flow --verbose
@@ -77,8 +130,12 @@ run-show-example:
 # Utility targets
 # Clean files based on .gitignore (safe - only removes ignored files)
 # Removes files and directories ignored by git, but leaves untracked files
+.PHONY: clean clean-venv
 clean: ## Clean files based on .gitignore (safe - only removes ignored files)
-	@$(MAKE) -f ../common.mk clean_common
+	@$(MAKE) -f $(COMMON_MK_PATH) clean_common
+	@echo "Cleaning type stubs..."
+	@rm -rf $(TYPINGS_DIR)/ $(DIST_DIR)/
+	@echo "✓ Type stubs cleaned"
 
 clean-venv:
 	@echo "Removing virtual environment..."
@@ -91,26 +148,20 @@ check-deps:
 	@command -v uv >/dev/null 2>&1 || (echo "✗ uv not found. Run 'make install-uv'"; exit 1)
 	@echo "✓ uv is available"
 
-validate-code:
-	@echo "Validating code with ruff..."
-	uv run ruff check src/ test.py
-	@echo "✓ Code validation passed"
-
 # Test with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	uv run --with pytest-cov --with pytest-mock pytest test.py --cov=src/hornet_flow --cov-report=html --cov-report=term
+	uv run pytest tests --cov=src/hornet_flow --cov-report=html --cov-report=term --cov-report=xml
 
-# Full development workflow
-dev-setup: check-deps venv install-all validate-code test
-	@echo "✓ Development setup complete"
+dev-flow: check-deps venv install-all validate-code test ## runs full development workflow
+	@echo "✓ Development workflow complete"
 
 # CI-like workflow
 ci: check-deps venv install-lint validate-code lint test
 	@echo "✓ CI checks passed"
 
 # Demo and testing targets
-.PHONY: demo-watch
+.PHONY: demo-watch demo-watch-continuous test-metadata clean-demo
 demo-watch:  ## Demo the workflow watch command (creates temp dirs and runs watcher)
 	@echo "🚀 Setting up demo environment for workflow watch..."
 	@mkdir -p /tmp/hornet-demo/{inputs,work}
@@ -142,7 +193,6 @@ demo-watch-continuous:  ## Demo continuous workflow watching (runs until stopped
 	INPUTS_DIR=/tmp/hornet-demo/inputs WORK_DIR=/tmp/hornet-demo/work \
 		uv run hornet-flow workflow watch --verbose
 
-.PHONY: test-metadata
 test-metadata:  ## Create test metadata file for demo
 	@echo "📄 Creating test metadata.json file..."
 	@mkdir -p /tmp/hornet-demo/inputs
@@ -150,21 +200,7 @@ test-metadata:  ## Create test metadata file for demo
 	@echo "✅ Created /tmp/hornet-demo/inputs/metadata.json"
 	@echo "💡 Run 'make demo-watch' to process it"
 
-.PHONY: clean-demo
 clean-demo:  ## Clean up demo directories
 	@echo "🧹 Cleaning up demo directories..."
 	@rm -rf /tmp/hornet-demo
 	@echo "✅ Demo directories cleaned"
-
-# Build and install targets
-.PHONY: build
-build:  ## Build the package
-	uv build
-
-.PHONY: install-dev
-install-dev:  ## Install in development mode
-	uv pip install -e .
-
-.PHONY: install-from-git
-install-from-git:  ## Install from git repository
-	uv pip install "git+https://github.com/ITISFoundation/hornet-manifest-spec.git@main#subdirectory=tools/hornet-flow"

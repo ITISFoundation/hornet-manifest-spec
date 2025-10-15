@@ -5,8 +5,9 @@
 # pylint: disable=unused-variable
 
 
+import contextlib
 import json
-import sys
+import logging
 from pathlib import Path
 
 import pytest
@@ -14,35 +15,17 @@ import pytest
 from hornet_flow import logging_utils, model
 from hornet_flow.services import git_service, manifest_service, metadata_service
 
-_CURRENT_DIR = Path(
-    sys.argv[0] if __name__ == "__main__" else __file__
-).parent.resolve()
 
-
-@pytest.fixture
-def repo_path() -> Path:
-    return _CURRENT_DIR.parent.parent
-
-
-@pytest.fixture
-def package_dir(repo_path: Path) -> Path:
-    return repo_path / "tools" / "hornet_flow"
-
-
-@pytest.fixture
-def schema_dir(package_dir: Path) -> Path:
-    return package_dir / "schema"
-
-
-def test_load_metadata_portal_device():
+def test_load_metadata_portal_device(tools_hornet_flow_examples_dir: Path):
     """Test loading metadata from portal-device-metadata.json file."""
     # Get the path to the test JSON file
-    metadata_path = Path(__file__).parent / "examples" / "portal-device-metadata.json"
+    metadata_path = tools_hornet_flow_examples_dir / "portal-device-metadata.json"
+    assert metadata_path.exists(), f"Test file {metadata_path} should exist"
 
     # Load the metadata
     release = metadata_service.load_metadata_release(metadata_path)
 
-    # Verify release information]
+    # Verify release information
     assert release == model.Release(
         **{
             "origin": "GitHub",
@@ -79,10 +62,10 @@ def test_clone_repository(tmp_path: Path, commit_hash: str):
         assert repo_release.marker == commit_hash
 
 
-def test_walk_cad_manifest_components(repo_path: Path, tmp_path: Path):
+def test_walk_cad_manifest_components(examples_dir: Path, tmp_path: Path):
     """Test walking through CAD manifest components and validating with Pydantic model."""
     # Get the path to the test CAD manifest file
-    manifest_path = repo_path / "examples" / "cad_manifest.json"
+    manifest_path = examples_dir / "cad_manifest.json"
 
     # Load the manifest JSON
     with manifest_path.open("r", encoding="utf-8") as f:
@@ -193,12 +176,12 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
     cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_path)
 
     # Both manifests should exist in this repository
-    assert cad_manifest is not None, (
-        f"CAD manifest should exist in {repo_id} repository"
-    )
-    assert sim_manifest is not None, (
-        f"SIM manifest should exist in {repo_id} repository"
-    )
+    assert (
+        cad_manifest is not None
+    ), f"CAD manifest should exist in {repo_id} repository"
+    assert (
+        sim_manifest is not None
+    ), f"SIM manifest should exist in {repo_id} repository"
 
     # Step 3: Validate CAD files exist
     manifest_service.validate_manifest_schema(cad_manifest)
@@ -208,19 +191,21 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
     )
 
     # Report results
-    print(
-        f"CAD manifest: Found {len(cad_existing_files)} existing files, {len(cad_missing_files)} missing files"
+    logging.info(
+        "CAD manifest: Found %d existing files, %d missing files",
+        len(cad_existing_files),
+        len(cad_missing_files),
     )
 
     # Assert no missing files - all referenced files should exist
-    assert len(cad_missing_files) == 0, (
-        f"CAD manifest has missing files: {cad_missing_files}"
-    )
+    assert (
+        len(cad_missing_files) == 0
+    ), f"CAD manifest has missing files: {cad_missing_files}"
 
     # Assert we found files in both manifests
-    assert len(cad_existing_files) > 0, (
-        "CAD manifest should reference at least some files"
-    )
+    assert (
+        len(cad_existing_files) > 0
+    ), "CAD manifest should reference at least some files"
 
     # Step 4: Validate SIM manifest if it exists
     manifest_service.validate_manifest_schema(sim_manifest)
@@ -228,8 +213,6 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
 
 def test_lifespan_in_contextmanager(caplog: pytest.LogCaptureFixture):
     """Test that log_lifespan logs start and end of context, including when exceptions are raised."""
-    import contextlib
-    import logging
 
     # Create a real logger for testing
     logger = logging.getLogger("test_logger")

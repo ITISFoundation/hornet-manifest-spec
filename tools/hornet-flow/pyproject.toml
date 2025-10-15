@@ -1,6 +1,6 @@
 [project]
 name = "hornet-flow"
-version = "0.2.0"
+version = "0.3.0"
 description = "`hornet-flow` is a Python package for consuming GitHub repositories containing **Hornet manifest files**. It parses manifests, loads CAD models, and configures simulation environments, enabling a smooth flow from repository to simulation."
 readme = "README.md"
 authors = [
@@ -16,7 +16,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-  "pytest"
+  "pyright>=1.1.406",
+  "pytest",
+  "pytest-asyncio>=1.2.0",
+  "pytest-cov>=7.0.0",
+  "pytest-mock>=3.15.1",
 ]
 lint = [
   "ruff"
@@ -37,7 +41,6 @@ disable = [
   "missing-function-docstring"
 ]
 
-
 [tool.ruff.lint]
 select = ["I"]  # enable isort rules
 isort.known-first-party = ["hornet_flow"]  # adjust to your own package
@@ -46,6 +49,9 @@ isort.combine-as-imports = true
 
 
 [tool.pytest.ini_options]
+addopts = "--strict-markers"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
   "integration: tests against repose with external manifests",
