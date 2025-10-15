@@ -336,7 +336,7 @@ def check_external_readiness(**kwargs):
     # raise RuntimeError("External system not ready")
 
 # Register the callback
-dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, check_external_readiness)
+dispatcher.register(WorkflowEvent.MANIFEST_READY, check_external_readiness)
 
 # Create API instance
 api = HornetFlowAPI()
@@ -378,9 +378,9 @@ def send_notification(**kwargs):
     print(f"🔔 Starting manifest processing for {repo_path}")
 
 # Register all handlers
-dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, check_service_health)
-dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, log_workflow_progress)
-dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, send_notification)
+dispatcher.register(WorkflowEvent.MANIFEST_READY, check_service_health)
+dispatcher.register(WorkflowEvent.MANIFEST_READY, log_workflow_progress)
+dispatcher.register(WorkflowEvent.MANIFEST_READY, send_notification)
 
 # Run workflow
 api = HornetFlowAPI()
@@ -416,7 +416,7 @@ def wait_for_external_system(**kwargs):
     # If we get here, external system is not ready
     raise RuntimeError("External system not ready after maximum wait time")
 
-dispatcher.register(WorkflowEvent.BEFORE_PROCESS_MANIFEST, wait_for_external_system)
+dispatcher.register(WorkflowEvent.MANIFEST_READY, wait_for_external_system)
 
 api = HornetFlowAPI()
 success_count, total_count = api.workflow.run(
@@ -571,13 +571,11 @@ success_count, total_count = api.cad.load(
 ```
 
 
-## Development
-
-See the Makefile for development commands:
+## Development workflow
 
 ```bash
 make help           # Show available targets
 make install-all    # Install all dependencies
-make test          # Run tests
-make lint          # Run linting
+make lint           # Run linting
+make tests          # Run tests
 ```
