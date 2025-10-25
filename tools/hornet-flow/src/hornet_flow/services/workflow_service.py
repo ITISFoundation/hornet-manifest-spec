@@ -86,8 +86,8 @@ class EventDispatcher:
             for callback in self._callbacks[event]:
                 try:
                     callback(**kwargs)
-                except Exception as e:
-                    _logger.error(f"Error in event callback for {event.value}: {e}")
+                except Exception:  # pylint: disable=broad-exception-caught
+                    _logger.exception("Error in event callback for %s", event.value)
 
 
 def run_workflow(
