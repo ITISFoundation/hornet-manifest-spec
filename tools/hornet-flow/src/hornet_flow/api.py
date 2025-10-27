@@ -137,7 +137,7 @@ class WorkflowAPI:
         fail_fast: bool = False,
         stability_seconds: float = 2.0,
         event_dispatcher: EventDispatcher | None = None,
-        recursive: bool = True,
+        recursive: bool = False,
         metadata_filename: str = "metadata.json",
     ) -> None:
         """Watch for metadata.json files and automatically process them."""

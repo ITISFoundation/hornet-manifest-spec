@@ -95,7 +95,7 @@ def watch_for_metadata(
     fail_fast: bool = False,
     stability_seconds: float = 2.0,
     event_dispatcher: workflow_service.EventDispatcher | None = None,
-    recursive: bool = True,
+    recursive: bool = False,
     metadata_filename: str = "metadata.json",
 ):
     """Watch for metadata.json files and process them.
