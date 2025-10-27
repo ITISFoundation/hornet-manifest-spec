@@ -95,7 +95,9 @@ def watch_for_metadata(
     fail_fast: bool = False,
     stability_seconds: float = 2.0,
     event_dispatcher: workflow_service.EventDispatcher | None = None,
-) -> None:
+    recursive: bool = True,
+    metadata_filename: str = "metadata.json",
+):
     """Watch for metadata.json files and process them.
 
     Args:
@@ -126,14 +128,12 @@ def watch_for_metadata(
     except (OSError, PermissionError) as e:
         raise PermissionError(f"Cannot create work directory {work_dir}: {e}") from e
 
-    _logger.info("👀 Watching for metadata.json in: %s", inputs_dir)
+    _logger.info("👀 Watching for %s in: %s", metadata_filename, inputs_dir)
     _logger.info("📁 Work directory: %s", work_dir)
     _logger.info("🔄 Mode: %s", "single file" if once else "continuous")
 
-    metadata_filename = "metadata.json"
-
     try:
-        for changes in watch(inputs_dir, recursive=False):
+        for changes in watch(inputs_dir, recursive=recursive):
             for change_type, file_path in changes:
                 file_path = Path(file_path)
 

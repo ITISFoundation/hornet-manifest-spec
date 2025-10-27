@@ -137,6 +137,8 @@ class WorkflowAPI:
         fail_fast: bool = False,
         stability_seconds: float = 2.0,
         event_dispatcher: EventDispatcher | None = None,
+        recursive: bool = True,
+        metadata_filename: str = "metadata.json",
     ) -> None:
         """Watch for metadata.json files and automatically process them."""
         inputs_path = Path(inputs_dir).resolve()
@@ -160,6 +162,8 @@ class WorkflowAPI:
             name_filter=name_filter,
             fail_fast=fail_fast,
             stability_seconds=stability_seconds,
+            recursive=recursive,
+            metadata_filename=metadata_filename,
             event_dispatcher=event_dispatcher,
         )
 
