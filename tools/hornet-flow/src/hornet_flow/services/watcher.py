@@ -108,7 +108,7 @@ def _scan_existing_metadata_files(
         metadata_file = inputs_dir / metadata_filename
         if metadata_file.exists() and metadata_file.is_file():
             return metadata_file
-    
+
     return None
 
 
@@ -224,11 +224,13 @@ def watch_for_metadata(
 
     # Check for existing metadata file first
     _logger.info("🔍 Scanning for existing metadata file...")
-    existing_file = _scan_existing_metadata_files(inputs_dir, recursive, metadata_filename)
+    existing_file = _scan_existing_metadata_files(
+        inputs_dir, recursive, metadata_filename
+    )
 
     if existing_file:
         _logger.info("📄 Found existing %s: %s", metadata_filename, existing_file)
-        
+
         if _handle_metadata_file(
             existing_file,
             work_dir,
@@ -240,7 +242,9 @@ def watch_for_metadata(
             event_dispatcher=event_dispatcher,
         ):
             if once:
-                _logger.info("🏁 Single file mode - exiting after processing existing file")
+                _logger.info(
+                    "🏁 Single file mode - exiting after processing existing file"
+                )
                 return
 
     if once and not existing_file:
