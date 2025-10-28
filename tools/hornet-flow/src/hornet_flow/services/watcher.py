@@ -85,6 +85,96 @@ def _process_metadata_file(
     )
 
 
+def _scan_existing_metadata_files(
+    inputs_dir: Path,
+    recursive: bool = False,
+    metadata_filename: str = "metadata.json",
+) -> Path | None:
+    """Scan for the first existing metadata file in the directory.
+
+    Args:
+        inputs_dir: Directory to scan
+        recursive: Whether to scan recursively
+        metadata_filename: Name of metadata files to find
+
+    Returns:
+        Path to first existing metadata file, or None if not found
+    """
+    if recursive:
+        pattern = f"**/{metadata_filename}"
+        for metadata_file in inputs_dir.glob(pattern):
+            return metadata_file
+    else:
+        metadata_file = inputs_dir / metadata_filename
+        if metadata_file.exists() and metadata_file.is_file():
+            return metadata_file
+    
+    return None
+
+
+def _handle_metadata_file(
+    file_path: Path,
+    work_dir: Path,
+    stability_seconds: float,
+    plugin: str | None = None,
+    type_filter: str | None = None,
+    name_filter: str | None = None,
+    fail_fast: bool = False,
+    event_dispatcher: workflow_service.EventDispatcher | None = None,
+) -> bool:
+    """Handle processing of a single metadata file.
+
+    Args:
+        file_path: Path to the metadata file
+        work_dir: Working directory for workflow processing
+        stability_seconds: How long to wait for file stability
+        plugin: Plugin to use for processing
+        type_filter: Filter components by type
+        name_filter: Filter components by name
+        fail_fast: Stop on first error
+        event_dispatcher: Optional event dispatcher for workflow events
+
+    Returns:
+        True if file was successfully processed, False otherwise
+
+    Raises:
+        Exception: If fail_fast is True and processing fails
+    """
+    _logger.info("📄 Processing metadata file: %s", file_path)
+
+    # Check file stability
+    _logger.info("⏳ Checking file stability...")
+    if not _check_file_stability(file_path, stability_seconds):
+        _logger.warning("❌ File not stable or empty, skipping: %s", file_path)
+        return False
+
+    _logger.info("✅ File is stable, processing...")
+
+    try:
+        success_count, total_count = _process_metadata_file(
+            file_path,
+            work_dir,
+            plugin=plugin,
+            type_filter=type_filter,
+            name_filter=name_filter,
+            fail_fast=fail_fast,
+            event_dispatcher=event_dispatcher,
+        )
+
+        _logger.info(
+            "✅ Successfully processed %d/%d components",
+            success_count,
+            total_count,
+        )
+        return True
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        _logger.error("❌ Failed to process metadata file: %s", e)
+        if fail_fast:
+            raise
+        return False
+
+
 def watch_for_metadata(
     inputs_dir: Path,
     work_dir: Path,
@@ -132,6 +222,33 @@ def watch_for_metadata(
     _logger.info("📁 Work directory: %s", work_dir)
     _logger.info("🔄 Mode: %s", "single file" if once else "continuous")
 
+    # Check for existing metadata file first
+    _logger.info("🔍 Scanning for existing metadata file...")
+    existing_file = _scan_existing_metadata_files(inputs_dir, recursive, metadata_filename)
+
+    if existing_file:
+        _logger.info("📄 Found existing %s: %s", metadata_filename, existing_file)
+        
+        if _handle_metadata_file(
+            existing_file,
+            work_dir,
+            stability_seconds,
+            plugin=plugin,
+            type_filter=type_filter,
+            name_filter=name_filter,
+            fail_fast=fail_fast,
+            event_dispatcher=event_dispatcher,
+        ):
+            if once:
+                _logger.info("🏁 Single file mode - exiting after processing existing file")
+                return
+
+    if once and not existing_file:
+        _logger.info("🔍 No existing files found in single file mode")
+
+    if not once or not existing_file:
+        _logger.info("👀 Starting to watch for file changes...")
+
     try:
         for changes in watch(inputs_dir, recursive=recursive):
             for change_type, file_path in changes:
@@ -147,43 +264,21 @@ def watch_for_metadata(
 
                 _logger.info("📄 Detected %s: %s", metadata_filename, file_path)
 
-                # Check file stability
-                _logger.info("⏳ Checking file stability...")
-                if not _check_file_stability(file_path, stability_seconds):
-                    _logger.warning(
-                        "❌ File not stable or empty, skipping: %s", file_path
-                    )
-                    continue
-
-                _logger.info("✅ File is stable, processing...")
-
-                try:
-                    success_count, total_count = _process_metadata_file(
-                        file_path,
-                        work_dir,
-                        plugin=plugin,
-                        type_filter=type_filter,
-                        name_filter=name_filter,
-                        fail_fast=fail_fast,
-                        event_dispatcher=event_dispatcher,
-                    )
-
-                    _logger.info(
-                        "✅ Successfully processed %d/%d components",
-                        success_count,
-                        total_count,
-                    )
-
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    _logger.error("❌ Failed to process metadata file: %s", e)
-                    if fail_fast:
-                        raise
-
-                if once:
-                    _logger.info("🏁 Single file mode - exiting after processing")
-                    return
-                else:
-                    _logger.info("👀 Continuing to watch for more files...")
+                if _handle_metadata_file(
+                    file_path,
+                    work_dir,
+                    stability_seconds,
+                    plugin=plugin,
+                    type_filter=type_filter,
+                    name_filter=name_filter,
+                    fail_fast=fail_fast,
+                    event_dispatcher=event_dispatcher,
+                ):
+                    if once:
+                        _logger.info("🏁 Single file mode - exiting after processing")
+                        return
+                    else:
+                        _logger.info("👀 Continuing to watch for more files...")
 
     except KeyboardInterrupt:
         _logger.info("⛔ Stopping watcher (Ctrl+C received)")
