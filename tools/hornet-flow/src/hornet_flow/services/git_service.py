@@ -8,6 +8,7 @@ import asyncio
 import subprocess
 from pathlib import Path
 from typing import Final
+import os
 
 from ..model import Release
 
@@ -31,7 +32,7 @@ async def _run_git_command_async(
 
     if process.returncode != 0:
         raise subprocess.CalledProcessError(
-            process.returncode, " ".join(args), stderr.decode()
+            process.returncode or os.EX_SOFTWARE, " ".join(args), stderr.decode()
         )
 
     return stdout.decode().strip()
