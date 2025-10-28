@@ -5,6 +5,7 @@ cloning, version checking, and repository information extraction.
 """
 
 import asyncio
+import os
 import subprocess
 from pathlib import Path
 from typing import Final
@@ -31,7 +32,7 @@ async def _run_git_command_async(
 
     if process.returncode != 0:
         raise subprocess.CalledProcessError(
-            process.returncode, " ".join(args), stderr.decode()
+            process.returncode or os.EX_SOFTWARE, " ".join(args), stderr.decode()
         )
 
     return stdout.decode().strip()
