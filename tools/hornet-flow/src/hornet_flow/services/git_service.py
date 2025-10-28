@@ -5,10 +5,10 @@ cloning, version checking, and repository information extraction.
 """
 
 import asyncio
+import os
 import subprocess
 from pathlib import Path
 from typing import Final
-import os
 
 from ..model import Release
 
