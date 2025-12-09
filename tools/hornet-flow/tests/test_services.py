@@ -16,7 +16,6 @@ from hornet_flow import logging_utils, model
 from hornet_flow.services import git_service, manifest_service, metadata_service
 
 
-@pytest.mark.asyncio
 async def test_load_metadata_portal_device(tools_hornet_flow_examples_dir: Path):
     """Test loading metadata from portal-device-metadata.json file."""
     # Get the path to the test JSON file
@@ -37,7 +36,6 @@ async def test_load_metadata_portal_device(tools_hornet_flow_examples_dir: Path)
     )
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "commit_hash", ["main", "ceca2ac4abc8055a7aeaa624ab68a460cd03ff1e"]
 )
@@ -136,7 +134,6 @@ def _validate_manifest_files(
 
 @pytest.mark.slow
 @pytest.mark.integration
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "repo_id,metadata",
     [
