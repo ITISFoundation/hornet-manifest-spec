@@ -8,28 +8,30 @@ from pathlib import Path
 
 import pytest
 
-from hornet_flow.services.workflow_service import EventDispatcher, WorkflowEvent
+from hornet_flow.services.workflow_service import AsyncEventDispatcher, WorkflowEvent
 
 
 @pytest.fixture
-def dispatcher() -> EventDispatcher:
-    """Create an EventDispatcher instance for testing."""
-    return EventDispatcher()
+def dispatcher() -> AsyncEventDispatcher:
+    """Create an AsyncEventDispatcher instance for testing."""
+    return AsyncEventDispatcher()
 
 
-def test_event_dispatcher_creation(dispatcher: EventDispatcher) -> None:
-    """Test creating event dispatcher from README example."""
+@pytest.mark.asyncio
+async def test_event_dispatcher_creation(dispatcher: AsyncEventDispatcher) -> None:
+    """Test creating async event dispatcher from README example."""
     assert dispatcher is not None
     assert hasattr(dispatcher, "register")
     assert hasattr(dispatcher, "trigger")
 
 
-def test_single_event_handler(dispatcher: EventDispatcher) -> None:
-    """Test single event handler registration and triggering."""
+@pytest.mark.asyncio
+async def test_single_event_handler(dispatcher: AsyncEventDispatcher) -> None:
+    """Test single async event handler registration and triggering."""
     callback_called = False
     callback_kwargs = {}
 
-    def check_external_readiness(**kwargs) -> None:
+    async def check_external_readiness(**kwargs) -> None:
         nonlocal callback_called, callback_kwargs
         callback_called = True
         callback_kwargs = kwargs
@@ -44,25 +46,26 @@ def test_single_event_handler(dispatcher: EventDispatcher) -> None:
         "sim_manifest": None,
         "release": None,
     }
-    dispatcher.trigger(WorkflowEvent.MANIFESTS_READY, **test_kwargs)
+    await dispatcher.trigger(WorkflowEvent.MANIFESTS_READY, **test_kwargs)
 
     # Verify
     assert callback_called
     assert callback_kwargs == test_kwargs
 
 
-def test_multiple_event_handlers(dispatcher: EventDispatcher) -> None:
-    """Test multiple event handlers from README example."""
+@pytest.mark.asyncio
+async def test_multiple_event_handlers(dispatcher: AsyncEventDispatcher) -> None:
+    """Test multiple async event handlers from README example."""
     # Track which handlers were called
     handlers_called: list[str] = []
 
-    def check_service_health(**kwargs) -> None:
+    async def check_service_health(**kwargs) -> None:
         handlers_called.append("health_check")
 
-    def log_workflow_progress(**kwargs) -> None:
+    async def log_workflow_progress(**kwargs) -> None:
         handlers_called.append("log_progress")
 
-    def send_notification(**kwargs) -> None:
+    async def send_notification(**kwargs) -> None:
         handlers_called.append("notification")
 
     # Register all handlers
@@ -71,7 +74,7 @@ def test_multiple_event_handlers(dispatcher: EventDispatcher) -> None:
     dispatcher.register(WorkflowEvent.MANIFESTS_READY, send_notification)
 
     # Trigger event
-    dispatcher.trigger(WorkflowEvent.MANIFESTS_READY, repo_path=Path("/test"))
+    await dispatcher.trigger(WorkflowEvent.MANIFESTS_READY, repo_path=Path("/test"))
 
     # Verify all handlers were called
     assert len(handlers_called) == 3
@@ -80,13 +83,16 @@ def test_multiple_event_handlers(dispatcher: EventDispatcher) -> None:
     assert "notification" in handlers_called
 
 
-def test_event_handler_exception_handling(dispatcher: EventDispatcher) -> None:
-    """Test that exceptions in event handlers are properly handled."""
+@pytest.mark.asyncio
+async def test_event_handler_exception_handling(
+    dispatcher: AsyncEventDispatcher,
+) -> None:
+    """Test that exceptions in async event handlers are properly handled."""
 
-    def failing_handler(**kwargs) -> None:
+    async def failing_handler(**kwargs) -> None:
         raise RuntimeError("Handler failed")
 
-    def successful_handler(**kwargs) -> None:
+    async def successful_handler(**kwargs) -> None:
         successful_handler.called = True  # type: ignore
 
     successful_handler.called = False  # type: ignore
@@ -96,7 +102,7 @@ def test_event_handler_exception_handling(dispatcher: EventDispatcher) -> None:
     dispatcher.register(WorkflowEvent.MANIFESTS_READY, successful_handler)
 
     # Trigger event - should not raise exception
-    dispatcher.trigger(WorkflowEvent.MANIFESTS_READY, repo_path=Path("/test"))
+    await dispatcher.trigger(WorkflowEvent.MANIFESTS_READY, repo_path=Path("/test"))
 
     # Verify successful handler was still called despite failing handler
     assert successful_handler.called  # type: ignore
