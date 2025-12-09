@@ -19,7 +19,8 @@ def api() -> HornetFlowAPI:
     return HornetFlowAPI()
 
 
-def test_manifest_validate_both_valid(
+@pytest.mark.asyncio
+async def test_manifest_validate_both_valid(
     mocker: MockerFixture, api: HornetFlowAPI
 ) -> None:
     """Test validating manifests when both are valid."""
@@ -35,7 +36,7 @@ def test_manifest_validate_both_valid(
     mock_validate.return_value = None  # No exceptions means valid
 
     # Execute
-    cad_valid, sim_valid = api.manifest.validate("/path/to/repo")
+    cad_valid, sim_valid = await api.manifest.validate("/path/to/repo")
 
     # Verify
     assert cad_valid is True
@@ -43,7 +44,8 @@ def test_manifest_validate_both_valid(
     assert mock_validate.call_count == 2
 
 
-def test_manifest_validate_no_manifests(
+@pytest.mark.asyncio
+async def test_manifest_validate_no_manifests(
     mocker: MockerFixture, api: HornetFlowAPI
 ) -> None:
     """Test validating when no manifests are found."""
@@ -55,10 +57,11 @@ def test_manifest_validate_no_manifests(
 
     # Execute & Verify
     with pytest.raises(ApiFileNotFoundError):
-        api.manifest.validate("/path/to/repo")
+        await api.manifest.validate("/path/to/repo")
 
 
-def test_manifest_show_both(mocker: MockerFixture, api: HornetFlowAPI) -> None:
+@pytest.mark.asyncio
+async def test_manifest_show_both(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     """Test showing both manifest types from README example."""
     # Setup
     mock_find = mocker.patch(
@@ -72,7 +75,7 @@ def test_manifest_show_both(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     mock_read.side_effect = [{"cad_data": "test"}, {"sim_data": "test"}]
 
     # Execute
-    result = api.manifest.show("/path/to/repo", manifest_type="both")
+    result = await api.manifest.show("/path/to/repo", manifest_type="both")
 
     # Verify
     assert "cad" in result
@@ -81,7 +84,10 @@ def test_manifest_show_both(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     assert result["sim"] == {"sim_data": "test"}
 
 
-def test_manifest_show_cad_only(mocker: MockerFixture, api: HornetFlowAPI) -> None:
+@pytest.mark.asyncio
+async def test_manifest_show_cad_only(
+    mocker: MockerFixture, api: HornetFlowAPI
+) -> None:
     """Test showing only CAD manifest."""
     # Setup
     mock_find = mocker.patch(
@@ -95,7 +101,7 @@ def test_manifest_show_cad_only(mocker: MockerFixture, api: HornetFlowAPI) -> No
     mock_read.return_value = {"cad_data": "test"}
 
     # Execute
-    result = api.manifest.show("/path/to/repo", manifest_type="cad")
+    result = await api.manifest.show("/path/to/repo", manifest_type="cad")
 
     # Verify
     assert "cad" in result

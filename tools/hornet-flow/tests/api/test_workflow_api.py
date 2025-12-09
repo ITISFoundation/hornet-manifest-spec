@@ -20,7 +20,8 @@ def api() -> HornetFlowAPI:
     return HornetFlowAPI()
 
 
-def test_workflow_run_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
+@pytest.mark.asyncio
+async def test_workflow_run_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     """Test basic workflow run from README example."""
     # Setup
     mock_run_workflow = mocker.patch(
@@ -29,7 +30,7 @@ def test_workflow_run_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     mock_run_workflow.return_value = (5, 10)
 
     # Execute
-    success_count, total_count = api.workflow.run(
+    success_count, total_count = await api.workflow.run(
         repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
         plugin="osparc",
         fail_fast=True,
@@ -50,7 +51,8 @@ def test_workflow_run_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     assert call_args.kwargs["fail_fast"] is True
 
 
-def test_workflow_watch_basic(
+@pytest.mark.asyncio
+async def test_workflow_watch_basic(
     mocker: MockerFixture, api: HornetFlowAPI, tmp_path: Path
 ) -> None:
     """Test basic watch functionality from README example."""
@@ -63,7 +65,7 @@ def test_workflow_watch_basic(
     inputs_dir.mkdir()
 
     # Execute
-    api.workflow.watch(
+    await api.workflow.watch(
         inputs_dir=str(inputs_dir), work_dir=str(work_dir), plugin="osparc", once=True
     )
 
@@ -74,23 +76,28 @@ def test_workflow_watch_basic(
     assert call_args.kwargs["once"] is True
 
 
-def test_workflow_watch_nonexistent_directory(api: HornetFlowAPI) -> None:
+@pytest.mark.asyncio
+async def test_workflow_watch_nonexistent_directory(api: HornetFlowAPI) -> None:
     """Test watch with non-existent directory raises proper exception."""
     with pytest.raises(ApiFileNotFoundError):
-        api.workflow.watch(inputs_dir="/nonexistent/directory", work_dir="/tmp/work")
+        await api.workflow.watch(
+            inputs_dir="/nonexistent/directory", work_dir="/tmp/work"
+        )
 
 
-def test_workflow_watch_file_instead_of_directory(api: HornetFlowAPI) -> None:
+@pytest.mark.asyncio
+async def test_workflow_watch_file_instead_of_directory(api: HornetFlowAPI) -> None:
     """Test watch with file path instead of directory raises proper exception."""
     with tempfile.NamedTemporaryFile() as temp_file:
         with pytest.raises(ApiInputValueError):
-            api.workflow.watch(
+            await api.workflow.watch(
                 inputs_dir=temp_file.name,  # File, not directory
                 work_dir="/tmp/work",
             )
 
 
-def test_workflow_run_with_event_dispatcher(
+@pytest.mark.asyncio
+async def test_workflow_run_with_event_dispatcher(
     mocker: MockerFixture, api: HornetFlowAPI
 ) -> None:
     """Test workflow run with event dispatcher from README example."""
@@ -109,7 +116,7 @@ def test_workflow_run_with_event_dispatcher(
     dispatcher.register(WorkflowEvent.MANIFESTS_READY, check_external_readiness)
 
     # Execute
-    success_count, total_count = api.workflow.run(
+    success_count, total_count = await api.workflow.run(
         repo_url="https://github.com/COSMIIC-Inc/Implantables-Electrodes",
         plugin="osparc",
         event_dispatcher=dispatcher,
@@ -125,7 +132,8 @@ def test_workflow_run_with_event_dispatcher(
     assert call_args.kwargs["event_dispatcher"] == dispatcher
 
 
-def test_watch_with_event_dispatcher(
+@pytest.mark.asyncio
+async def test_watch_with_event_dispatcher(
     mocker: MockerFixture, api: HornetFlowAPI, tmp_path: Path
 ) -> None:
     """Test watcher with event dispatcher integration."""
@@ -143,7 +151,7 @@ def test_watch_with_event_dispatcher(
     inputs_dir = tmp_path / "inputs"
     inputs_dir.mkdir()
 
-    api.workflow.watch(
+    await api.workflow.watch(
         inputs_dir=str(inputs_dir), work_dir="/tmp/work", event_dispatcher=dispatcher
     )
 

@@ -4,6 +4,7 @@
 # pylint: disable=unused-argument
 # pylint: disable=unused-variable
 
+import pytest
 
 from hornet_flow.api import EventDispatcher, HornetFlowAPI, WorkflowEvent
 
@@ -25,10 +26,11 @@ def test_event_system_imports() -> None:
     assert WorkflowEvent.MANIFESTS_READY is not None
 
 
-def test_api_info() -> None:
+@pytest.mark.asyncio
+async def test_api_info() -> None:
     """Test that API info method returns expected system information."""
     api = HornetFlowAPI()
-    info = api.info()
+    info = await api.info()
 
     # Verify expected keys are present
     assert "version" in info

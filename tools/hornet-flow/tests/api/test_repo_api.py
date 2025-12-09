@@ -18,14 +18,15 @@ def api() -> HornetFlowAPI:
     return HornetFlowAPI()
 
 
-def test_repo_clone_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
+@pytest.mark.asyncio
+async def test_repo_clone_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     """Test basic repository cloning from README example."""
     # Setup
     mock_clone = mocker.patch("hornet_flow.services.git_service.clone_repository")
     mock_clone.return_value = Path("/tmp/my-repo")
 
     # Execute
-    repo_path = api.repo.clone(
+    repo_path = await api.repo.clone(
         repo_url="https://github.com/CARSSCenter/Sub-mm-Parylene-Cuff-Electrode",
         dest="/tmp/my-repo",
         commit="main",
@@ -36,14 +37,17 @@ def test_repo_clone_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     mock_clone.assert_called_once()
 
 
-def test_repo_clone_with_defaults(mocker: MockerFixture, api: HornetFlowAPI) -> None:
+@pytest.mark.asyncio
+async def test_repo_clone_with_defaults(
+    mocker: MockerFixture, api: HornetFlowAPI
+) -> None:
     """Test repository cloning with default parameters."""
     # Setup
     mock_clone = mocker.patch("hornet_flow.services.git_service.clone_repository")
     mock_clone.return_value = Path("/tmp/default-repo")
 
     # Execute
-    repo_path = api.repo.clone(
+    repo_path = await api.repo.clone(
         repo_url="https://github.com/CARSSCenter/Sub-mm-Parylene-Cuff-Electrode"
     )
 
