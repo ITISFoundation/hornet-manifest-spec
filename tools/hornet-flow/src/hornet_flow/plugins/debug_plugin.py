@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from .base import HornetFlowPlugin
 
@@ -20,13 +19,13 @@ class DebugPlugin(HornetFlowPlugin):
         """Plugin name for CLI selection."""
         return self._name
 
-    def setup(
+    async def setup(
         self,
         repo_path: Path,
         manifest_path: Path,
         logger: logging.Logger,
-        repo_url: Optional[str] = None,
-        repo_commit: Optional[str] = None,
+        repo_url: str | None = None,
+        repo_commit: str | None = None,
     ) -> None:
         """Initialize debug plugin."""
         self.logger = logger
@@ -39,11 +38,11 @@ class DebugPlugin(HornetFlowPlugin):
         self.logger.info("-Repository URL: %s", repo_url)
         self.logger.info("-Repository commit: %s", repo_commit)
 
-    def load_component(
+    async def load_component(
         self,
         component_id: str,
         component_type: str,
-        component_description: Optional[str],
+        component_description: str | None,
         component_files: list[Path],
         component_parent_path: list[str],
     ) -> bool:
@@ -68,7 +67,7 @@ class DebugPlugin(HornetFlowPlugin):
         # Always succeed
         return True
 
-    def teardown(self) -> None:
+    async def teardown(self) -> None:
         """Clean up debug plugin."""
         self.logger.info(
             "🐛 Debug plugin processed %d components", self.component_count

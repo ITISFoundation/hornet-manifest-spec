@@ -3,20 +3,22 @@
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
 
 
 class HornetFlowPlugin(ABC):
-    """Base interface for manifest processing plugins."""
+    """Base interface for manifest processing plugins.
+
+    All plugin methods are async to support non-blocking I/O operations.
+    """
 
     @abstractmethod
-    def setup(
+    async def setup(
         self,
         repo_path: Path,
         manifest_path: Path,
         logger: logging.Logger,
-        repo_url: Optional[str] = None,
-        repo_commit: Optional[str] = None,
+        repo_url: str | None = None,
+        repo_commit: str | None = None,
     ) -> None:
         """Initialize plugin with repository and manifest context.
 
@@ -29,11 +31,11 @@ class HornetFlowPlugin(ABC):
         """
 
     @abstractmethod
-    def load_component(
+    async def load_component(
         self,
         component_id: str,
         component_type: str,
-        component_description: Optional[str],
+        component_description: str | None,
         component_files: list[Path],
         component_parent_path: list[str],
     ) -> bool:
@@ -52,7 +54,7 @@ class HornetFlowPlugin(ABC):
         """
 
     @abstractmethod
-    def teardown(self) -> None:
+    async def teardown(self) -> None:
         """Clean up plugin resources."""
 
     @property

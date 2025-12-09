@@ -28,19 +28,19 @@ class ManifestProcessor:
         self.plugin_class = get_plugin(self.plugin_name)
         self.plugin_instance: HornetFlowPlugin | None = None
 
-    def _prepare_release_data(
+    async def _prepare_release_data(
         self, repo_path: Path, repo_release: Release | None
     ) -> Release | None:
         """Get or extract release information."""
         if repo_release:
             return repo_release
         try:
-            return git_service.extract_git_repo_info(repo_path)
+            return await git_service.extract_git_repo_info(repo_path)
         except ValueError as e:
             self.logger.warning("Could not extract git repository information: %s", e)
             return None
 
-    def process_manifest(
+    async def process_manifest(
         self,
         manifest_path: Path,
         repo_path: Path,
@@ -69,7 +69,7 @@ class ManifestProcessor:
             RuntimeError: If component processing fails (when fail_fast=True)
         """
         # 0. Preprocessing
-        repo_release = self._prepare_release_data(repo_path, repo_release)
+        repo_release = await self._prepare_release_data(repo_path, repo_release)
         self.logger.debug("Repo %s release data: %s", repo_path, repo_release)
 
         try:
@@ -85,7 +85,7 @@ class ManifestProcessor:
                 assert self.plugin_instance is not None  # nosec
 
                 # Extract repo_url and repo_commit from release if available
-                self.plugin_instance.setup(
+                await self.plugin_instance.setup(
                     repo_path,
                     manifest_path,
                     self.logger,
@@ -99,8 +99,10 @@ class ManifestProcessor:
                 f"Processing manifest '{manifest_path.name}' with plugin '{self.plugin_name}'",
                 level=logging.DEBUG,
             ):
-                manifest_data = manifest_service.read_manifest_contents(manifest_path)
-                return self._process_components(
+                manifest_data = await manifest_service.read_manifest_contents(
+                    manifest_path
+                )
+                return await self._process_components(
                     manifest_data,
                     manifest_path,
                     repo_path,
@@ -117,10 +119,10 @@ class ManifestProcessor:
                 level=logging.DEBUG,
             ):
                 if self.plugin_instance:
-                    self.plugin_instance.teardown()
+                    await self.plugin_instance.teardown()
                     self.plugin_instance = None
 
-    def _process_components(
+    async def _process_components(
         self,
         manifest_data: dict,
         manifest_path: Path,
@@ -146,7 +148,9 @@ class ManifestProcessor:
             )
 
             # Process with plugin
-            if self._process_single_component(component, component_files, fail_fast):
+            if await self._process_single_component(
+                component, component_files, fail_fast
+            ):
                 success_count += 1
 
         return success_count, total_count
@@ -187,14 +191,14 @@ class ManifestProcessor:
                     raise FileNotFoundError(f"Missing file: {file_path}")
         return component_files
 
-    def _process_single_component(
+    async def _process_single_component(
         self, component: Component, component_files: list[Path], fail_fast: bool
     ) -> bool:
         """Process a single component with the plugin."""
         assert self.plugin_instance is not None  # nosec Should be set by process_manifest
 
         try:
-            success = self.plugin_instance.load_component(
+            success = await self.plugin_instance.load_component(
                 component_id=component.id,
                 component_type=component.type,
                 component_description=component.description,

@@ -337,9 +337,8 @@ async def _process_manifest_with_plugin(
     """Process CAD manifest using specified plugin."""
     processor = ManifestProcessor(plugin_name, _logger)
 
-    # Note: processor.process_manifest is synchronous (plugins not yet async)
-    # This will be converted to async in Phase 3 when we migrate the plugin interface
-    success_count, total_count = processor.process_manifest(
+    # Process manifest asynchronously (plugins are now async)
+    success_count, total_count = await processor.process_manifest(
         cad_manifest, repo_path, True, type_filter, name_filter, repo_release
     )
     return success_count, total_count
