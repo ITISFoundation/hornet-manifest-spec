@@ -4,6 +4,7 @@ This module contains the Typer app setup, global options, sub-app registration,
 and the main entry point. All command implementations are in cli_commands.py.
 """
 
+import asyncio
 import os
 import platform
 import sys
@@ -96,7 +97,7 @@ def show_info(
     version_table.add_row("Platform", platform.platform())
 
     # Check git version
-    git_version = git_service.check_git_version()
+    git_version = asyncio.run(git_service.check_git_version())
     if git_version:
         version_table.add_row("Git", git_version)
     else:

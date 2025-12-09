@@ -5,6 +5,7 @@ like progress bars, logging, and option merging while delegating business logic
 to the API layer.
 """
 
+import asyncio
 import tempfile
 from pathlib import Path
 from typing import Annotated, Optional
@@ -107,18 +108,20 @@ def workflow_run_cmd(
     ) as progress:
         task = progress.add_task("Processing workflow...", total=None)
 
-        # Call class-based API
+        # Call class-based API (wrapped in asyncio.run for async API)
         api = HornetFlowAPI()
-        success_count, total_count = api.workflow.run(
-            metadata_file=metadata_file,
-            repo_url=repo_url,
-            repo_commit=repo_commit,
-            repo_path=repo_path,
-            work_dir=work_dir,
-            fail_fast=fail_fast,
-            plugin=plugin,
-            type_filter=type_filter,
-            name_filter=name_filter,
+        success_count, total_count = asyncio.run(
+            api.workflow.run(
+                metadata_file=metadata_file,
+                repo_url=repo_url,
+                repo_commit=repo_commit,
+                repo_path=repo_path,
+                work_dir=work_dir,
+                fail_fast=fail_fast,
+                plugin=plugin,
+                type_filter=type_filter,
+                name_filter=name_filter,
+            )
         )
 
         progress.update(task, description="Workflow completed successfully")
@@ -165,9 +168,9 @@ def repo_clone_cmd(
     ) as progress:
         task = progress.add_task(f"Cloning repository to {dest_path}...", total=None)
 
-        # Call class-based API
+        # Call class-based API (wrapped in asyncio.run for async API)
         api = HornetFlowAPI()
-        repo_path = api.repo.clone(repo_url, str(dest_path), commit)
+        repo_path = asyncio.run(api.repo.clone(repo_url, str(dest_path), commit))
 
         progress.update(task, description="Repository cloned successfully")
 
@@ -205,9 +208,9 @@ def manifest_validate_cmd(
     ) as progress:
         find_task = progress.add_task("Finding manifest files...", total=None)
 
-        # Call class-based API
+        # Call class-based API (wrapped in asyncio.run for async API)
         api = HornetFlowAPI()
-        cad_valid, sim_valid = api.manifest.validate(repo_path)
+        cad_valid, sim_valid = asyncio.run(api.manifest.validate(repo_path))
 
         progress.update(find_task, description="Validation completed")
 
@@ -249,9 +252,9 @@ def manifest_show_cmd(
     app_logger.info("📁 Repository: %s", repo_path)
     app_logger.info("🔍 Type: %s", manifest_type)
 
-    # Call class-based API
+    # Call class-based API (wrapped in asyncio.run for async API)
     api = HornetFlowAPI()
-    manifest_data = api.manifest.show(repo_path, manifest_type)
+    manifest_data = asyncio.run(api.manifest.show(repo_path, manifest_type))
 
     # CLI-specific output formatting
     if "cad" in manifest_data:
@@ -291,10 +294,10 @@ def cad_load_cmd(
     app_logger.info("🔧 Loading CAD files")
     app_logger.info(" 📁 Repository: %s", repo_path)
 
-    # Call class-based API
+    # Call class-based API (wrapped in asyncio.run for async API)
     api = HornetFlowAPI()
-    success_count, total_count = api.cad.load(
-        repo_path, plugin, type_filter, name_filter, fail_fast
+    success_count, total_count = asyncio.run(
+        api.cad.load(repo_path, plugin, type_filter, name_filter, fail_fast)
     )
 
     app_logger.info(
@@ -374,18 +377,20 @@ def workflow_watch_cmd(
     app_logger.info("📁 Inputs directory: %s", inputs_dir)
     app_logger.info("📁 Work directory: %s", work_path)
 
-    # Call the class-based API
+    # Call the class-based API (wrapped in asyncio.run for async API)
     try:
         api = HornetFlowAPI()
-        api.workflow.watch(
-            inputs_dir=inputs_dir,
-            work_dir=str(work_path),
-            once=once,
-            plugin=plugin,
-            type_filter=type_filter,
-            name_filter=name_filter,
-            fail_fast=fail_fast,
-            stability_seconds=stability_seconds,
+        asyncio.run(
+            api.workflow.watch(
+                inputs_dir=inputs_dir,
+                work_dir=str(work_path),
+                once=once,
+                plugin=plugin,
+                type_filter=type_filter,
+                name_filter=name_filter,
+                fail_fast=fail_fast,
+                stability_seconds=stability_seconds,
+            )
         )
     except KeyboardInterrupt:
         app_logger.info("⛔ Watcher stopped by user")
