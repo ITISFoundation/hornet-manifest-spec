@@ -19,7 +19,6 @@ def api() -> HornetFlowAPI:
     return HornetFlowAPI()
 
 
-@pytest.mark.asyncio
 async def test_manifest_validate_both_valid(
     mocker: MockerFixture, api: HornetFlowAPI
 ) -> None:
@@ -44,7 +43,6 @@ async def test_manifest_validate_both_valid(
     assert mock_validate.call_count == 2
 
 
-@pytest.mark.asyncio
 async def test_manifest_validate_no_manifests(
     mocker: MockerFixture, api: HornetFlowAPI
 ) -> None:
@@ -60,7 +58,6 @@ async def test_manifest_validate_no_manifests(
         await api.manifest.validate("/path/to/repo")
 
 
-@pytest.mark.asyncio
 async def test_manifest_show_both(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     """Test showing both manifest types from README example."""
     # Setup
@@ -84,7 +81,6 @@ async def test_manifest_show_both(mocker: MockerFixture, api: HornetFlowAPI) -> 
     assert result["sim"] == {"sim_data": "test"}
 
 
-@pytest.mark.asyncio
 async def test_manifest_show_cad_only(
     mocker: MockerFixture, api: HornetFlowAPI
 ) -> None:

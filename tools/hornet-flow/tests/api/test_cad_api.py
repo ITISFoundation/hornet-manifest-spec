@@ -16,7 +16,6 @@ def api() -> HornetFlowAPI:
     return HornetFlowAPI()
 
 
-@pytest.mark.asyncio
 async def test_cad_load_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     """Test basic CAD loading from README example."""
     # Setup

@@ -18,7 +18,6 @@ def api() -> HornetFlowAPI:
     return HornetFlowAPI()
 
 
-@pytest.mark.asyncio
 async def test_repo_clone_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     """Test basic repository cloning from README example."""
     # Setup
@@ -37,7 +36,6 @@ async def test_repo_clone_basic(mocker: MockerFixture, api: HornetFlowAPI) -> No
     mock_clone.assert_called_once()
 
 
-@pytest.mark.asyncio
 async def test_repo_clone_with_defaults(
     mocker: MockerFixture, api: HornetFlowAPI
 ) -> None:

@@ -11,7 +11,6 @@ import pytest
 from hornet_flow.services.workflow_service import AsyncEventDispatcher, WorkflowEvent
 
 
-@pytest.mark.asyncio
 async def test_async_event_dispatcher_basic():
     """Test basic async event dispatcher functionality."""
     dispatcher = AsyncEventDispatcher()
@@ -36,7 +35,6 @@ async def test_async_event_dispatcher_basic():
     assert results[1] == ("callback2", {"data": "test", "value": 123})
 
 
-@pytest.mark.asyncio
 async def test_async_event_dispatcher_sequential_execution():
     """Test that callbacks execute sequentially, not concurrently."""
     dispatcher = AsyncEventDispatcher()
@@ -63,7 +61,6 @@ async def test_async_event_dispatcher_sequential_execution():
     assert execution_log == ["slow_start", "slow_end", "fast_start", "fast_end"]
 
 
-@pytest.mark.asyncio
 async def test_async_event_dispatcher_error_handling(
     caplog: pytest.LogCaptureFixture,
 ):
@@ -95,7 +92,6 @@ async def test_async_event_dispatcher_error_handling(
     )
 
 
-@pytest.mark.asyncio
 async def test_async_event_dispatcher_rejects_sync_callbacks():
     """Test that registering a sync callback raises TypeError."""
     dispatcher = AsyncEventDispatcher()
@@ -108,7 +104,6 @@ async def test_async_event_dispatcher_rejects_sync_callbacks():
         dispatcher.register(WorkflowEvent.WORKFLOW_STARTED, sync_callback)
 
 
-@pytest.mark.asyncio
 async def test_async_event_dispatcher_multiple_events():
     """Test dispatcher with multiple different events."""
     dispatcher = AsyncEventDispatcher()
@@ -133,7 +128,6 @@ async def test_async_event_dispatcher_multiple_events():
     assert results["completed"] == {"stage": "end"}
 
 
-@pytest.mark.asyncio
 async def test_async_event_dispatcher_no_callbacks():
     """Test triggering an event with no registered callbacks."""
     dispatcher = AsyncEventDispatcher()
@@ -142,7 +136,6 @@ async def test_async_event_dispatcher_no_callbacks():
     await dispatcher.trigger(WorkflowEvent.WORKFLOW_STARTED, data="test")
 
 
-@pytest.mark.asyncio
 async def test_async_event_dispatcher_async_coordination():
     """Test async event coordination between components."""
     dispatcher = AsyncEventDispatcher()

@@ -20,7 +20,6 @@ def api() -> HornetFlowAPI:
     return HornetFlowAPI()
 
 
-@pytest.mark.asyncio
 async def test_workflow_run_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     """Test basic workflow run from README example."""
     # Setup
@@ -51,7 +50,6 @@ async def test_workflow_run_basic(mocker: MockerFixture, api: HornetFlowAPI) -> 
     assert call_args.kwargs["fail_fast"] is True
 
 
-@pytest.mark.asyncio
 async def test_workflow_watch_basic(
     mocker: MockerFixture, api: HornetFlowAPI, tmp_path: Path
 ) -> None:
@@ -76,7 +74,6 @@ async def test_workflow_watch_basic(
     assert call_args.kwargs["once"] is True
 
 
-@pytest.mark.asyncio
 async def test_workflow_watch_nonexistent_directory(api: HornetFlowAPI) -> None:
     """Test watch with non-existent directory raises proper exception."""
     with pytest.raises(ApiFileNotFoundError):
@@ -85,7 +82,6 @@ async def test_workflow_watch_nonexistent_directory(api: HornetFlowAPI) -> None:
         )
 
 
-@pytest.mark.asyncio
 async def test_workflow_watch_file_instead_of_directory(api: HornetFlowAPI) -> None:
     """Test watch with file path instead of directory raises proper exception."""
     with tempfile.NamedTemporaryFile() as temp_file:
@@ -96,7 +92,6 @@ async def test_workflow_watch_file_instead_of_directory(api: HornetFlowAPI) -> N
             )
 
 
-@pytest.mark.asyncio
 async def test_workflow_run_with_event_dispatcher(
     mocker: MockerFixture, api: HornetFlowAPI
 ) -> None:
@@ -132,7 +127,6 @@ async def test_workflow_run_with_event_dispatcher(
     assert call_args.kwargs["event_dispatcher"] == dispatcher
 
 
-@pytest.mark.asyncio
 async def test_watch_with_event_dispatcher(
     mocker: MockerFixture, api: HornetFlowAPI, tmp_path: Path
 ) -> None:
