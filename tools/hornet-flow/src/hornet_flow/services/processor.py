@@ -22,12 +22,18 @@ class PluginProcessingError(Exception):
 class ManifestProcessor:
     """Orchestrates the processing of manifest components through plugins."""
 
-    def __init__(self, plugin_name: str | None, logger: logging.Logger):
+    def __init__(
+        self,
+        plugin_name: str | None,
+        logger: logging.Logger,
+        concurrent_components: bool = False,
+    ):
         self.logger = logger
         # plugin
         self.plugin_name = plugin_name or get_default_plugin()
         self.plugin_class = get_plugin(self.plugin_name)
         self.plugin_instance: HornetFlowPlugin | None = None
+        self.concurrent_components = concurrent_components
 
     async def _prepare_release_data(
         self, repo_path: Path, repo_release: Release | None
@@ -134,9 +140,9 @@ class ManifestProcessor:
     ) -> tuple[int, int]:
         """Process individual components from manifest data.
 
-        Components are grouped by parent path and processed concurrently within each group.
-        This allows sibling components to be processed in parallel while maintaining
-        parent-child ordering.
+        Components are grouped by parent path. If concurrent_components is enabled,
+        sibling components are processed in parallel while maintaining parent-child
+        ordering. Otherwise, components are processed sequentially.
         """
         success_count = 0
         total_count = 0
@@ -164,31 +170,47 @@ class ManifestProcessor:
         sorted_groups = sorted(components_by_parent.items(), key=lambda x: len(x[0]))
 
         for parent_key, components in sorted_groups:
-            # Process all components with the same parent concurrently
-            tasks = []
-            for component in components:
-                # Resolve and validate files
-                component_files = self._resolve_component_files(
-                    component, manifest_path, repo_path, fail_fast
-                )
-                # Create task for concurrent processing
-                tasks.append(
-                    self._process_single_component(
+            if self.concurrent_components:
+                # Process all components with the same parent concurrently
+                tasks = []
+                for component in components:
+                    # Resolve and validate files
+                    component_files = self._resolve_component_files(
+                        component, manifest_path, repo_path, fail_fast
+                    )
+                    # Create task for concurrent processing
+                    tasks.append(
+                        self._process_single_component(
+                            component, component_files, fail_fast
+                        )
+                    )
+
+                # Process sibling components concurrently
+                if tasks:
+                    results = await asyncio.gather(
+                        *tasks, return_exceptions=not fail_fast
+                    )
+
+                    # Count successes
+                    for result in results:
+                        if isinstance(result, Exception):
+                            if fail_fast:
+                                raise result
+                            self.logger.error("Component processing failed: %s", result)
+                        elif result is True:
+                            success_count += 1
+            else:
+                # Process components sequentially
+                for component in components:
+                    # Apply filters
+                    component_files = self._resolve_component_files(
+                        component, manifest_path, repo_path, fail_fast
+                    )
+                    # Process component
+                    result = await self._process_single_component(
                         component, component_files, fail_fast
                     )
-                )
-
-            # Process sibling components concurrently
-            if tasks:
-                results = await asyncio.gather(*tasks, return_exceptions=not fail_fast)
-
-                # Count successes
-                for result in results:
-                    if isinstance(result, Exception):
-                        if fail_fast:
-                            raise result
-                        self.logger.error("Component processing failed: %s", result)
-                    elif result is True:
+                    if result is True:
                         success_count += 1
 
         return success_count, total_count
