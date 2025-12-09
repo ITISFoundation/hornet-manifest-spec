@@ -2,20 +2,24 @@
 
 This module provides functionality to watch for metadata.json files and trigger
 hornet-flow workflow processing when files are detected and stable.
+
+All functions are async-first using watchfiles.awatch().
 """
 
+import asyncio
 import logging
-import time
 from pathlib import Path
 
-from watchfiles import watch
+from watchfiles import awatch
 
 from . import workflow_service
 
 _logger = logging.getLogger(__name__)
 
 
-def _check_file_stability(file_path: Path, stability_seconds: float = 2.0) -> bool:
+async def _check_file_stability(
+    file_path: Path, stability_seconds: float = 2.0
+) -> bool:
     """Check if a file is stable (not being written to).
 
     Args:
@@ -30,7 +34,7 @@ def _check_file_stability(file_path: Path, stability_seconds: float = 2.0) -> bo
 
     try:
         initial_size = file_path.stat().st_size
-        time.sleep(stability_seconds)
+        await asyncio.sleep(stability_seconds)
 
         if not file_path.exists():
             return False
@@ -42,7 +46,7 @@ def _check_file_stability(file_path: Path, stability_seconds: float = 2.0) -> bo
         return False
 
 
-def _process_metadata_file(
+async def _process_metadata_file(
     metadata_path: Path,
     work_dir: Path,
     plugin: str | None = None,
@@ -71,10 +75,10 @@ def _process_metadata_file(
     _logger.info("🚀 Processing metadata file: %s", metadata_path)
 
     # Ensure work directory exists
-    work_dir.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(work_dir.mkdir, parents=True, exist_ok=True)
 
     # Call the workflow service
-    return workflow_service.run_workflow(
+    return await workflow_service.run_workflow(
         metadata_file_path=metadata_path,
         work_dir=work_dir,
         plugin=plugin,
@@ -85,7 +89,7 @@ def _process_metadata_file(
     )
 
 
-def _scan_existing_metadata_files(
+async def _scan_existing_metadata_files(
     inputs_dir: Path,
     recursive: bool = False,
     metadata_filename: str = "metadata.json",
@@ -100,19 +104,22 @@ def _scan_existing_metadata_files(
     Returns:
         Path to first existing metadata file, or None if not found
     """
-    if recursive:
-        pattern = f"**/{metadata_filename}"
-        for metadata_file in inputs_dir.glob(pattern):
-            return metadata_file
-    else:
-        metadata_file = inputs_dir / metadata_filename
-        if metadata_file.exists() and metadata_file.is_file():
-            return metadata_file
 
-    return None
+    def _scan_sync() -> Path | None:
+        if recursive:
+            pattern = f"**/{metadata_filename}"
+            for metadata_file in inputs_dir.glob(pattern):
+                return metadata_file
+        else:
+            metadata_file = inputs_dir / metadata_filename
+            if metadata_file.exists() and metadata_file.is_file():
+                return metadata_file
+        return None
+
+    return await asyncio.to_thread(_scan_sync)
 
 
-def _handle_metadata_file(
+async def _handle_metadata_file(
     file_path: Path,
     work_dir: Path,
     stability_seconds: float,
@@ -144,14 +151,14 @@ def _handle_metadata_file(
 
     # Check file stability
     _logger.info("⏳ Checking file stability...")
-    if not _check_file_stability(file_path, stability_seconds):
+    if not await _check_file_stability(file_path, stability_seconds):
         _logger.warning("❌ File not stable or empty, skipping: %s", file_path)
         return False
 
     _logger.info("✅ File is stable, processing...")
 
     try:
-        success_count, total_count = _process_metadata_file(
+        success_count, total_count = await _process_metadata_file(
             file_path,
             work_dir,
             plugin=plugin,
@@ -175,7 +182,7 @@ def _handle_metadata_file(
         return False
 
 
-def watch_for_metadata(
+async def watch_for_metadata(
     inputs_dir: Path,
     work_dir: Path,
     once: bool = True,
@@ -214,7 +221,7 @@ def watch_for_metadata(
 
     # Ensure work directory exists
     try:
-        work_dir.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(work_dir.mkdir, parents=True, exist_ok=True)
     except (OSError, PermissionError) as e:
         raise PermissionError(f"Cannot create work directory {work_dir}: {e}") from e
 
@@ -224,14 +231,14 @@ def watch_for_metadata(
 
     # Check for existing metadata file first
     _logger.info("🔍 Scanning for existing metadata file...")
-    existing_file = _scan_existing_metadata_files(
+    existing_file = await _scan_existing_metadata_files(
         inputs_dir, recursive, metadata_filename
     )
 
     if existing_file:
         _logger.info("📄 Found existing %s: %s", metadata_filename, existing_file)
 
-        if _handle_metadata_file(
+        if await _handle_metadata_file(
             existing_file,
             work_dir,
             stability_seconds,
@@ -254,7 +261,7 @@ def watch_for_metadata(
         _logger.info("👀 Starting to watch for file changes...")
 
     try:
-        for changes in watch(inputs_dir, recursive=recursive):
+        async for changes in awatch(inputs_dir, recursive=recursive):
             for change_type, file_path in changes:
                 file_path = Path(file_path)
 
@@ -268,7 +275,7 @@ def watch_for_metadata(
 
                 _logger.info("📄 Detected %s: %s", metadata_filename, file_path)
 
-                if _handle_metadata_file(
+                if await _handle_metadata_file(
                     file_path,
                     work_dir,
                     stability_seconds,
