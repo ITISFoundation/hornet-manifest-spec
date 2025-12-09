@@ -7,6 +7,7 @@ All functions are async-first.
 """
 
 import asyncio
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -14,8 +15,10 @@ from typing import Final
 
 from ..model import Release
 
-_GIT_TIMEOUT: Final[int] = 10
+_GIT_TIMEOUT: Final[int] = 20
 _GIT_VERSION_TIMEOUT: Final[int] = 5
+
+_logger = logging.getLogger(__name__)
 
 
 async def _run_git_command_async(
@@ -27,6 +30,13 @@ async def _run_git_command_async(
         subprocess.CalledProcessError: If git command fails
         asyncio.TimeoutError: If command times out
     """
+    _logger.debug(
+        "Running git command: %s with timeout of %s and workdir='%s'",
+        " ".join(args),
+        timeout,
+        cwd,
+    )
+
     process = await asyncio.create_subprocess_exec(
         *args, cwd=cwd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
@@ -47,6 +57,9 @@ async def _run_git_command_async_or_none(
     try:
         return await _run_git_command_async(args, cwd, timeout)
     except (subprocess.CalledProcessError, TimeoutError):
+        _logger.debug(
+            "Git command failed or timed out: %s", " ".join(args), exc_info=True
+        )
         return None
 
 
