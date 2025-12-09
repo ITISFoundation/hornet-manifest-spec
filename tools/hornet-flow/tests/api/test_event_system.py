@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from hornet_flow.api import EventDispatcher, WorkflowEvent
+from hornet_flow.services.workflow_service import EventDispatcher, WorkflowEvent
 
 
 @pytest.fixture

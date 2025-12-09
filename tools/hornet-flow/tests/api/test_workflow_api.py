@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from hornet_flow.api import EventDispatcher, HornetFlowAPI, WorkflowEvent
+from hornet_flow.api import AsyncEventDispatcher, HornetFlowAPI, WorkflowEvent
 from hornet_flow.exceptions import ApiFileNotFoundError, ApiInputValueError
 
 
@@ -101,10 +101,10 @@ async def test_workflow_run_with_event_dispatcher(
     )
     mock_run_workflow.return_value = (3, 5)
 
-    dispatcher = EventDispatcher()
+    dispatcher = AsyncEventDispatcher()
     callback_called = False
 
-    def check_external_readiness(**kwargs) -> None:
+    async def check_external_readiness(**kwargs) -> None:
         nonlocal callback_called
         callback_called = True
 
@@ -133,10 +133,10 @@ async def test_watch_with_event_dispatcher(
     """Test watcher with event dispatcher integration."""
     mock_watch = mocker.patch("hornet_flow.services.watcher.watch_for_metadata")
 
-    dispatcher = EventDispatcher()
+    dispatcher = AsyncEventDispatcher()
     callback_called = False
 
-    def check_readiness(**kwargs) -> None:
+    async def check_readiness(**kwargs) -> None:
         nonlocal callback_called
         callback_called = True
 
