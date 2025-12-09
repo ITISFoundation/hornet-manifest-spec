@@ -53,7 +53,7 @@ async def _process_metadata_file(
     type_filter: str | None = None,
     name_filter: str | None = None,
     fail_fast: bool = False,
-    event_dispatcher: workflow_service.EventDispatcher | None = None,
+    event_dispatcher: workflow_service.AsyncEventDispatcher | None = None,
 ) -> tuple[int, int]:
     """Process a metadata file using the workflow service.
 
@@ -127,7 +127,7 @@ async def _handle_metadata_file(
     type_filter: str | None = None,
     name_filter: str | None = None,
     fail_fast: bool = False,
-    event_dispatcher: workflow_service.EventDispatcher | None = None,
+    event_dispatcher: workflow_service.AsyncEventDispatcher | None = None,
 ) -> bool:
     """Handle processing of a single metadata file.
 
@@ -191,7 +191,7 @@ async def watch_for_metadata(
     name_filter: str | None = None,
     fail_fast: bool = False,
     stability_seconds: float = 2.0,
-    event_dispatcher: workflow_service.EventDispatcher | None = None,
+    event_dispatcher: workflow_service.AsyncEventDispatcher | None = None,
     recursive: bool = False,
     metadata_filename: str = "metadata.json",
 ):

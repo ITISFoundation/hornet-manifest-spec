@@ -2,8 +2,11 @@
 
 This module provides workflow orchestration functionality that can be used
 by both the API layer and other services like the watcher.
+
+All workflow functions are async-first.
 """
 
+import asyncio
 import logging
 import shutil
 import tempfile
@@ -69,7 +72,10 @@ class WorkflowEvent(Enum):
 
 
 class EventDispatcher:
-    """Simple event dispatcher for workflow events."""
+    """Simple event dispatcher for workflow events.
+
+    DEPRECATED: Use AsyncEventDispatcher instead. This is kept for backward compatibility.
+    """
 
     def __init__(self):
         self._callbacks: dict[WorkflowEvent, list[Callable]] = {}
@@ -90,7 +96,50 @@ class EventDispatcher:
                     _logger.exception("Error in event callback for %s", event.value)
 
 
-def run_workflow(
+class AsyncEventDispatcher:
+    """Async event dispatcher for workflow events.
+
+    All callbacks must be async and will be executed sequentially.
+    """
+
+    def __init__(self):
+        self._callbacks: dict[WorkflowEvent, list[Callable]] = {}
+
+    def register(self, event: WorkflowEvent, callback: Callable) -> None:
+        """Register an async callback for a specific event.
+
+        Args:
+            event: The workflow event to listen for
+            callback: An async callable that will be invoked when the event is triggered
+
+        Raises:
+            TypeError: If callback is not an async function
+        """
+        if not asyncio.iscoroutinefunction(callback):
+            raise TypeError(
+                f"Callback must be an async function, got {type(callback).__name__}"
+            )
+
+        if event not in self._callbacks:
+            self._callbacks[event] = []
+        self._callbacks[event].append(callback)
+
+    async def trigger(self, event: WorkflowEvent, **kwargs) -> None:
+        """Trigger all callbacks for a specific event sequentially.
+
+        Args:
+            event: The workflow event to trigger
+            **kwargs: Keyword arguments to pass to the callbacks
+        """
+        if event in self._callbacks:
+            for callback in self._callbacks[event]:
+                try:
+                    await callback(**kwargs)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    _logger.exception("Error in event callback for %s", event.value)
+
+
+async def run_workflow(
     metadata_file_path: Path | None = None,
     repo_url: str | None = None,
     repo_commit: str = "main",
@@ -100,7 +149,7 @@ def run_workflow(
     plugin: str | None = None,
     type_filter: str | None = None,
     name_filter: str | None = None,
-    event_dispatcher: EventDispatcher | None = None,
+    event_dispatcher: AsyncEventDispatcher | None = None,
 ) -> tuple[int, int]:
     """Run a complete workflow to process hornet manifests.
 
@@ -114,7 +163,7 @@ def run_workflow(
         plugin: Plugin to use for processing
         type_filter: Filter components by type
         name_filter: Filter components by name
-        event_dispatcher: Optional event dispatcher for workflow events
+        event_dispatcher: Optional async event dispatcher for workflow events
 
     Returns:
         Tuple of (success_count, total_count)
@@ -134,7 +183,7 @@ def run_workflow(
 
     # Trigger workflow started event
     if event_dispatcher:
-        event_dispatcher.trigger(
+        await event_dispatcher.trigger(
             WorkflowEvent.WORKFLOW_STARTED,
             metadata_file_path=metadata_file_path,
             repo_url=repo_url,
@@ -154,7 +203,9 @@ def run_workflow(
         release = None
         # 1. Extract release info if needed
         if metadata_file_path:
-            release = metadata_service.load_metadata_release(str(metadata_file_path))
+            release = await metadata_service.load_metadata_release(
+                str(metadata_file_path)
+            )
             repo_url = release.url
             repo_commit = release.marker
 
@@ -163,12 +214,14 @@ def run_workflow(
             assert repo_url  # Already validated above
 
             with _local_repository_dir(repo_url, work_dir) as target_repo_path:
-                git_service.clone_repository(repo_url, repo_commit, target_repo_path)
+                await git_service.clone_repository(
+                    repo_url, repo_commit, target_repo_path
+                )
 
                 repo_path = target_repo_path
 
         if event_dispatcher:
-            event_dispatcher.trigger(
+            await event_dispatcher.trigger(
                 WorkflowEvent.REPOSITORY_READY,
                 repo_path=repo_path,
                 repo_url=repo_url,
@@ -176,7 +229,7 @@ def run_workflow(
             )
 
         # 3. Process manifests
-        success_count, total_count = _process_manifests(
+        success_count, total_count = await _process_manifests(
             repo_path,
             fail_fast,
             plugin,
@@ -195,7 +248,7 @@ def run_workflow(
     finally:
         # Trigger workflow completed event
         if event_dispatcher:
-            event_dispatcher.trigger(
+            await event_dispatcher.trigger(
                 WorkflowEvent.WORKFLOW_COMPLETED,
                 success_count=success_count,
                 total_count=total_count,
@@ -207,18 +260,18 @@ def run_workflow(
     return success_count, total_count
 
 
-def _process_manifests(
+async def _process_manifests(
     repo_path: Path,
     fail_fast: bool = False,
     plugin_name: str | None = None,
     type_filter: str | None = None,
     name_filter: str | None = None,
     release: Release | None = None,
-    event_dispatcher: EventDispatcher | None = None,
+    event_dispatcher: AsyncEventDispatcher | None = None,
 ) -> tuple[int, int]:
     """Process manifests found in repository."""
     # 1. Find hornet manifests
-    cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_path)
+    cad_manifest, sim_manifest = await manifest_service.find_hornet_manifests(repo_path)
 
     if not cad_manifest and not sim_manifest:
         raise FileNotFoundError(
@@ -230,7 +283,7 @@ def _process_manifests(
 
     if cad_manifest:
         try:
-            manifest_service.validate_manifest_schema(cad_manifest)
+            await manifest_service.validate_manifest_schema(cad_manifest)
         except Exception as e:  # pylint: disable=broad-exception-caught
             if fail_fast:
                 raise
@@ -238,7 +291,7 @@ def _process_manifests(
 
     if sim_manifest:
         try:
-            manifest_service.validate_manifest_schema(sim_manifest)
+            await manifest_service.validate_manifest_schema(sim_manifest)
         except Exception as e:  # pylint: disable=broad-exception-caught
             if fail_fast:
                 raise
@@ -251,7 +304,7 @@ def _process_manifests(
 
     # 3. Trigger manifests ready event
     if event_dispatcher:
-        event_dispatcher.trigger(
+        await event_dispatcher.trigger(
             WorkflowEvent.MANIFESTS_READY,
             repo_path=repo_path,
             cad_manifest=cad_manifest,
@@ -261,7 +314,7 @@ def _process_manifests(
 
     # 4. Process CAD manifest with plugin
     if cad_manifest:
-        return _process_manifest_with_plugin(
+        return await _process_manifest_with_plugin(
             cad_manifest,
             repo_path,
             plugin_name,
@@ -273,7 +326,7 @@ def _process_manifests(
     return 0, 0
 
 
-def _process_manifest_with_plugin(
+async def _process_manifest_with_plugin(
     cad_manifest: Path,
     repo_path: Path,
     plugin_name: str | None = None,
@@ -284,6 +337,8 @@ def _process_manifest_with_plugin(
     """Process CAD manifest using specified plugin."""
     processor = ManifestProcessor(plugin_name, _logger)
 
+    # Note: processor.process_manifest is synchronous (plugins not yet async)
+    # This will be converted to async in Phase 3 when we migrate the plugin interface
     success_count, total_count = processor.process_manifest(
         cad_manifest, repo_path, True, type_filter, name_filter, repo_release
     )

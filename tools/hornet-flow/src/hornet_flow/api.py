@@ -2,6 +2,8 @@
 
 This module provides a clean programmatic interface to hornet-flow functionality
 without CLI dependencies. Functions raise core domain exceptions only.
+
+All API functions are async-first.
 """
 
 import contextlib
@@ -20,7 +22,6 @@ import jsonschema
 import hornet_flow
 
 from ._version import __version__
-from .async_utils import AsyncBridge
 from .exceptions import (
     ApiFileNotFoundError,
     ApiInputValueError,
@@ -31,16 +32,18 @@ from .model import Release
 from .plugins import discover_plugins, get_default_plugin
 from .services import git_service, manifest_service, watcher, workflow_service
 from .services.processor import ManifestProcessor
-from .services.workflow_service import EventDispatcher, WorkflowEvent
+from .services.workflow_service import (
+    EventDispatcher,
+    WorkflowEvent,
+)
 
 _logger = logging.getLogger(__name__)
 
 assert WorkflowEvent  # nosec
-assert AsyncBridge  # nosec
 
 __all__: tuple[str, ...] = (
-    "AsyncBridge",
-    "EventDispatcher",
+    "AsyncEventDispatcher",
+    "EventDispatcher",  # Deprecated, use AsyncEventDispatcher
     "WorkflowEvent",
 )
 
