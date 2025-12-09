@@ -278,24 +278,31 @@ async def _process_manifests(
             f"No hornet manifest files found in repository at {repo_path}"
         )
 
-    # 2. Validate manifests
+    # 2. Validate manifests concurrently
+    validation_tasks = []
     validation_errors = []
 
     if cad_manifest:
-        try:
-            await manifest_service.validate_manifest_schema(cad_manifest)
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            if fail_fast:
-                raise
-            validation_errors.append(f"CAD manifest validation failed: {e}")
-
+        validation_tasks.append(
+            ("CAD", manifest_service.validate_manifest_schema(cad_manifest))
+        )
     if sim_manifest:
-        try:
-            await manifest_service.validate_manifest_schema(sim_manifest)
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            if fail_fast:
-                raise
-            validation_errors.append(f"SIM manifest validation failed: {e}")
+        validation_tasks.append(
+            ("SIM", manifest_service.validate_manifest_schema(sim_manifest))
+        )
+
+    # Run validations concurrently
+    if validation_tasks:
+        results = await asyncio.gather(
+            *[task for _, task in validation_tasks], return_exceptions=True
+        )
+
+        for (manifest_type, _), result in zip(validation_tasks, results):
+            if isinstance(result, Exception):
+                error_msg = f"{manifest_type} manifest validation failed: {result}"
+                validation_errors.append(error_msg)
+                if fail_fast:
+                    raise result
 
     # Log validation errors if any
     if validation_errors:

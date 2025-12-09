@@ -1,5 +1,6 @@
 """Manifest processing orchestration."""
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -131,27 +132,64 @@ class ManifestProcessor:
         type_filter: str | None,
         name_filter: str | None,
     ) -> tuple[int, int]:
-        """Process individual components from manifest data."""
+        """Process individual components from manifest data.
+
+        Components are grouped by parent path and processed concurrently within each group.
+        This allows sibling components to be processed in parallel while maintaining
+        parent-child ordering.
+        """
         success_count = 0
         total_count = 0
 
+        # Group components by parent path for concurrent processing
+        components_by_parent: dict[tuple[str, ...], list[Component]] = {}
+        all_components = []
+
         for component in manifest_service.walk_manifest_components(manifest_data):
             total_count += 1
+            all_components.append(component)
 
             # Apply filters
             if not self._should_process_component(component, type_filter, name_filter):
                 continue
 
-            # Resolve and validate files
-            component_files = self._resolve_component_files(
-                component, manifest_path, repo_path, fail_fast
-            )
+            # Group by parent path
+            parent_key = tuple(component.parent_path) if component.parent_path else ()
+            if parent_key not in components_by_parent:
+                components_by_parent[parent_key] = []
+            components_by_parent[parent_key].append(component)
 
-            # Process with plugin
-            if await self._process_single_component(
-                component, component_files, fail_fast
-            ):
-                success_count += 1
+        # Process components level by level (by parent depth)
+        # Sort by parent path depth to ensure parents are processed before children
+        sorted_groups = sorted(components_by_parent.items(), key=lambda x: len(x[0]))
+
+        for parent_key, components in sorted_groups:
+            # Process all components with the same parent concurrently
+            tasks = []
+            for component in components:
+                # Resolve and validate files
+                component_files = self._resolve_component_files(
+                    component, manifest_path, repo_path, fail_fast
+                )
+                # Create task for concurrent processing
+                tasks.append(
+                    self._process_single_component(
+                        component, component_files, fail_fast
+                    )
+                )
+
+            # Process sibling components concurrently
+            if tasks:
+                results = await asyncio.gather(*tasks, return_exceptions=not fail_fast)
+
+                # Count successes
+                for result in results:
+                    if isinstance(result, Exception):
+                        if fail_fast:
+                            raise result
+                        self.logger.error("Component processing failed: %s", result)
+                    elif result is True:
+                        success_count += 1
 
         return success_count, total_count
 
