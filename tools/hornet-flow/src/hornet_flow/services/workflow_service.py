@@ -71,31 +71,6 @@ class WorkflowEvent(Enum):
     )
 
 
-class EventDispatcher:
-    """Simple event dispatcher for workflow events.
-
-    DEPRECATED: Use AsyncEventDispatcher instead. This is kept for backward compatibility.
-    """
-
-    def __init__(self):
-        self._callbacks: dict[WorkflowEvent, list[Callable]] = {}
-
-    def register(self, event: WorkflowEvent, callback: Callable) -> None:
-        """Register a callback for a specific event."""
-        if event not in self._callbacks:
-            self._callbacks[event] = []
-        self._callbacks[event].append(callback)
-
-    def trigger(self, event: WorkflowEvent, **kwargs) -> None:
-        """Trigger all callbacks for a specific event."""
-        if event in self._callbacks:
-            for callback in self._callbacks[event]:
-                try:
-                    callback(**kwargs)
-                except Exception:  # pylint: disable=broad-exception-caught
-                    _logger.exception("Error in event callback for %s", event.value)
-
-
 class AsyncEventDispatcher:
     """Async event dispatcher for workflow events.
 

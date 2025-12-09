@@ -13,6 +13,7 @@ import platform
 import subprocess
 import sys
 import tempfile
+from enum import Enum
 from functools import wraps
 from pathlib import Path
 from typing import Any, TypeAlias
@@ -33,17 +34,16 @@ from .plugins import discover_plugins, get_default_plugin
 from .services import git_service, manifest_service, watcher, workflow_service
 from .services.processor import ManifestProcessor
 from .services.workflow_service import (
-    EventDispatcher,
+    AsyncEventDispatcher,
     WorkflowEvent,
 )
 
 _logger = logging.getLogger(__name__)
 
-assert WorkflowEvent  # nosec
+assert isinstance(WorkflowEvent, Enum)  # nosec
 
 __all__: tuple[str, ...] = (
     "AsyncEventDispatcher",
-    "EventDispatcher",  # Deprecated, use AsyncEventDispatcher
     "WorkflowEvent",
 )
 
@@ -142,7 +142,7 @@ class WorkflowAPI:
         plugin: str | None = None,
         type_filter: str | None = None,
         name_filter: str | None = None,
-        event_dispatcher: EventDispatcher | None = None,
+        event_dispatcher: AsyncEventDispatcher | None = None,
     ) -> tuple[SuccessCountInt, TotalCountInt]:
         """Run a complete workflow to process hornet manifests."""
         return await workflow_service.run_workflow(
@@ -169,7 +169,7 @@ class WorkflowAPI:
         name_filter: str | None = None,
         fail_fast: bool = False,
         stability_seconds: float = 2.0,
-        event_dispatcher: EventDispatcher | None = None,
+        event_dispatcher: AsyncEventDispatcher | None = None,
         recursive: bool = False,
         metadata_filename: str = "metadata.json",
     ) -> None:
