@@ -13,7 +13,6 @@ import platform
 import subprocess
 import sys
 import tempfile
-from enum import Enum
 from functools import wraps
 from pathlib import Path
 from typing import Any, TypeAlias
@@ -40,7 +39,7 @@ from .services.workflow_service import (
 
 _logger = logging.getLogger(__name__)
 
-assert isinstance(WorkflowEvent, Enum)  # nosec
+assert WorkflowEvent  # nosec
 
 __all__: tuple[str, ...] = (
     "AsyncEventDispatcher",
