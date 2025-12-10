@@ -16,14 +16,14 @@ from hornet_flow import logging_utils, model
 from hornet_flow.services import git_service, manifest_service, metadata_service
 
 
-def test_load_metadata_portal_device(tools_hornet_flow_examples_dir: Path):
+async def test_load_metadata_portal_device(tools_hornet_flow_examples_dir: Path):
     """Test loading metadata from portal-device-metadata.json file."""
     # Get the path to the test JSON file
     metadata_path = tools_hornet_flow_examples_dir / "portal-device-metadata.json"
     assert metadata_path.exists(), f"Test file {metadata_path} should exist"
 
     # Load the metadata
-    release = metadata_service.load_metadata_release(metadata_path)
+    release = await metadata_service.load_metadata_release(metadata_path)
 
     # Verify release information
     assert release == model.Release(
@@ -39,11 +39,13 @@ def test_load_metadata_portal_device(tools_hornet_flow_examples_dir: Path):
 @pytest.mark.parametrize(
     "commit_hash", ["main", "ceca2ac4abc8055a7aeaa624ab68a460cd03ff1e"]
 )
-def test_clone_repository(tmp_path: Path, commit_hash: str):
+async def test_clone_repository(tmp_path: Path, commit_hash: str):
     repo_url = "https://github.com/ITISFoundation/hornet-manifest-spec"
 
     # Clone the repository
-    repo_path = git_service.clone_repository(repo_url, commit_hash, tmp_path / "repo")
+    repo_path = await git_service.clone_repository(
+        repo_url, commit_hash, tmp_path / "repo"
+    )
 
     # Verify the repository was cloned successfully
     assert repo_path.exists()
@@ -56,7 +58,7 @@ def test_clone_repository(tmp_path: Path, commit_hash: str):
         assert folder_path.exists(), f"Expected folder '{folder_name}' not found"
         assert folder_path.is_dir(), f"'{folder_name}' exists but is not a directory"
 
-    repo_release = git_service.extract_git_repo_info(repo_path)
+    repo_release = await git_service.extract_git_repo_info(repo_path)
     assert repo_release.url == repo_url
     if commit_hash != "main":
         assert repo_release.marker == commit_hash
@@ -161,7 +163,9 @@ def _validate_manifest_files(
         ),
     ],
 )
-def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: dict):
+async def test_repository_manifest_validation(
+    tmp_path: Path, repo_id: str, metadata: dict
+):
     """Test complete workflow with different repositories: clone, find manifests, validate files."""
 
     # Step 1: Clone repository
@@ -169,22 +173,24 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
     repo_url = release["url"]
     commit_hash = release["marker"]
 
-    repo_path = git_service.clone_repository(repo_url, commit_hash, tmp_path / "repo")
+    repo_path = await git_service.clone_repository(
+        repo_url, commit_hash, tmp_path / "repo"
+    )
     assert repo_path.exists(), "Repository directory should exist"
 
     # Step 2: Find CAD manifest files
-    cad_manifest, sim_manifest = manifest_service.find_hornet_manifests(repo_path)
+    cad_manifest, sim_manifest = await manifest_service.find_hornet_manifests(repo_path)
 
     # Both manifests should exist in this repository
-    assert (
-        cad_manifest is not None
-    ), f"CAD manifest should exist in {repo_id} repository"
-    assert (
-        sim_manifest is not None
-    ), f"SIM manifest should exist in {repo_id} repository"
+    assert cad_manifest is not None, (
+        f"CAD manifest should exist in {repo_id} repository"
+    )
+    assert sim_manifest is not None, (
+        f"SIM manifest should exist in {repo_id} repository"
+    )
 
     # Step 3: Validate CAD files exist
-    manifest_service.validate_manifest_schema(cad_manifest)
+    await manifest_service.validate_manifest_schema(cad_manifest)
 
     cad_existing_files, cad_missing_files = _validate_manifest_files(
         cad_manifest, repo_path
@@ -198,17 +204,17 @@ def test_repository_manifest_validation(tmp_path: Path, repo_id: str, metadata: 
     )
 
     # Assert no missing files - all referenced files should exist
-    assert (
-        len(cad_missing_files) == 0
-    ), f"CAD manifest has missing files: {cad_missing_files}"
+    assert len(cad_missing_files) == 0, (
+        f"CAD manifest has missing files: {cad_missing_files}"
+    )
 
     # Assert we found files in both manifests
-    assert (
-        len(cad_existing_files) > 0
-    ), "CAD manifest should reference at least some files"
+    assert len(cad_existing_files) > 0, (
+        "CAD manifest should reference at least some files"
+    )
 
     # Step 4: Validate SIM manifest if it exists
-    manifest_service.validate_manifest_schema(sim_manifest)
+    await manifest_service.validate_manifest_schema(sim_manifest)
 
 
 def test_lifespan_in_contextmanager(caplog: pytest.LogCaptureFixture):

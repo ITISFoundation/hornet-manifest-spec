@@ -1,5 +1,6 @@
 """Manifest processing orchestration."""
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -21,26 +22,32 @@ class PluginProcessingError(Exception):
 class ManifestProcessor:
     """Orchestrates the processing of manifest components through plugins."""
 
-    def __init__(self, plugin_name: str | None, logger: logging.Logger):
+    def __init__(
+        self,
+        plugin_name: str | None,
+        logger: logging.Logger,
+        concurrent_components: bool = False,
+    ):
         self.logger = logger
         # plugin
         self.plugin_name = plugin_name or get_default_plugin()
         self.plugin_class = get_plugin(self.plugin_name)
         self.plugin_instance: HornetFlowPlugin | None = None
+        self.concurrent_components = concurrent_components
 
-    def _prepare_release_data(
+    async def _prepare_release_data(
         self, repo_path: Path, repo_release: Release | None
     ) -> Release | None:
         """Get or extract release information."""
         if repo_release:
             return repo_release
         try:
-            return git_service.extract_git_repo_info(repo_path)
+            return await git_service.extract_git_repo_info(repo_path)
         except ValueError as e:
             self.logger.warning("Could not extract git repository information: %s", e)
             return None
 
-    def process_manifest(
+    async def process_manifest(
         self,
         manifest_path: Path,
         repo_path: Path,
@@ -69,7 +76,7 @@ class ManifestProcessor:
             RuntimeError: If component processing fails (when fail_fast=True)
         """
         # 0. Preprocessing
-        repo_release = self._prepare_release_data(repo_path, repo_release)
+        repo_release = await self._prepare_release_data(repo_path, repo_release)
         self.logger.debug("Repo %s release data: %s", repo_path, repo_release)
 
         try:
@@ -85,7 +92,7 @@ class ManifestProcessor:
                 assert self.plugin_instance is not None  # nosec
 
                 # Extract repo_url and repo_commit from release if available
-                self.plugin_instance.setup(
+                await self.plugin_instance.setup(
                     repo_path,
                     manifest_path,
                     self.logger,
@@ -99,8 +106,10 @@ class ManifestProcessor:
                 f"Processing manifest '{manifest_path.name}' with plugin '{self.plugin_name}'",
                 level=logging.DEBUG,
             ):
-                manifest_data = manifest_service.read_manifest_contents(manifest_path)
-                return self._process_components(
+                manifest_data = await manifest_service.read_manifest_contents(
+                    manifest_path
+                )
+                return await self._process_components(
                     manifest_data,
                     manifest_path,
                     repo_path,
@@ -117,10 +126,10 @@ class ManifestProcessor:
                 level=logging.DEBUG,
             ):
                 if self.plugin_instance:
-                    self.plugin_instance.teardown()
+                    await self.plugin_instance.teardown()
                     self.plugin_instance = None
 
-    def _process_components(
+    async def _process_components(
         self,
         manifest_data: dict,
         manifest_path: Path,
@@ -129,25 +138,80 @@ class ManifestProcessor:
         type_filter: str | None,
         name_filter: str | None,
     ) -> tuple[int, int]:
-        """Process individual components from manifest data."""
+        """Process individual components from manifest data.
+
+        Components are grouped by parent path. If concurrent_components is enabled,
+        sibling components are processed in parallel while maintaining parent-child
+        ordering. Otherwise, components are processed sequentially.
+        """
         success_count = 0
         total_count = 0
 
+        # Group components by parent path for concurrent processing
+        components_by_parent: dict[tuple[str, ...], list[Component]] = {}
+        all_components = []
+
         for component in manifest_service.walk_manifest_components(manifest_data):
             total_count += 1
+            all_components.append(component)
 
             # Apply filters
             if not self._should_process_component(component, type_filter, name_filter):
                 continue
 
-            # Resolve and validate files
-            component_files = self._resolve_component_files(
-                component, manifest_path, repo_path, fail_fast
-            )
+            # Group by parent path
+            parent_key = tuple(component.parent_path) if component.parent_path else ()
+            if parent_key not in components_by_parent:
+                components_by_parent[parent_key] = []
+            components_by_parent[parent_key].append(component)
 
-            # Process with plugin
-            if self._process_single_component(component, component_files, fail_fast):
-                success_count += 1
+        # Process components level by level (by parent depth)
+        # Sort by parent path depth to ensure parents are processed before children
+        sorted_groups = sorted(components_by_parent.items(), key=lambda x: len(x[0]))
+
+        for parent_key, components in sorted_groups:
+            if self.concurrent_components:
+                # Process all components with the same parent concurrently
+                tasks = []
+                for component in components:
+                    # Resolve and validate files
+                    component_files = self._resolve_component_files(
+                        component, manifest_path, repo_path, fail_fast
+                    )
+                    # Create task for concurrent processing
+                    tasks.append(
+                        self._process_single_component(
+                            component, component_files, fail_fast
+                        )
+                    )
+
+                # Process sibling components concurrently
+                if tasks:
+                    results = await asyncio.gather(
+                        *tasks, return_exceptions=not fail_fast
+                    )
+
+                    # Count successes
+                    for result in results:
+                        if isinstance(result, Exception):
+                            if fail_fast:
+                                raise result
+                            self.logger.error("Component processing failed: %s", result)
+                        elif result is True:
+                            success_count += 1
+            else:
+                # Process components sequentially
+                for component in components:
+                    # Apply filters
+                    component_files = self._resolve_component_files(
+                        component, manifest_path, repo_path, fail_fast
+                    )
+                    # Process component
+                    result = await self._process_single_component(
+                        component, component_files, fail_fast
+                    )
+                    if result is True:
+                        success_count += 1
 
         return success_count, total_count
 
@@ -187,14 +251,14 @@ class ManifestProcessor:
                     raise FileNotFoundError(f"Missing file: {file_path}")
         return component_files
 
-    def _process_single_component(
+    async def _process_single_component(
         self, component: Component, component_files: list[Path], fail_fast: bool
     ) -> bool:
         """Process a single component with the plugin."""
         assert self.plugin_instance is not None  # nosec Should be set by process_manifest
 
         try:
-            success = self.plugin_instance.load_component(
+            success = await self.plugin_instance.load_component(
                 component_id=component.id,
                 component_type=component.type,
                 component_description=component.description,

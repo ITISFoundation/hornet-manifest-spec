@@ -16,7 +16,7 @@ def api() -> HornetFlowAPI:
     return HornetFlowAPI()
 
 
-def test_cad_load_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
+async def test_cad_load_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     """Test basic CAD loading from README example."""
     # Setup
     mock_run_workflow = mocker.patch(
@@ -25,7 +25,7 @@ def test_cad_load_basic(mocker: MockerFixture, api: HornetFlowAPI) -> None:
     mock_run_workflow.return_value = (2, 4)
 
     # Execute
-    success_count, total_count = api.cad.load(
+    success_count, total_count = await api.cad.load(
         repo_path="/path/to/repo", plugin="debug", type_filter="assembly"
     )
 

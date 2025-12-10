@@ -2,9 +2,9 @@
 
 import contextlib
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Optional
 
 import XCore
 import XCoreModeling
@@ -55,15 +55,15 @@ def _app_document_lifespan(
             logger.debug("Saving to %s", doc_path)
             is_saved = XCore.GetApp().SaveDocumentAs(f"{doc_path}")
             if not is_saved:
-                raise IOError(f"Failed to save document to {doc_path}")
+                raise OSError(f"Failed to save document to {doc_path}")
 
 
 @contextmanager
 def _app_document_main_model_group_lifespan(
     logger: logging.Logger,
     repo_name: str,
-    repo_url: Optional[str] = None,
-    repo_commit: Optional[str] = None,
+    repo_url: str | None = None,
+    repo_commit: str | None = None,
 ) -> Iterator[XCoreModeling.EntityGroup]:
     """Context manager for the main model's group lifespan."""
 
@@ -94,13 +94,13 @@ class OSparcPlugin(HornetFlowPlugin):
     def __init__(self):
         self._name = "osparc"
         self._logger: logging.Logger = logging.getLogger(__name__)
-        self._repo_path: Optional[Path] = None
-        self._manifest_path: Optional[Path] = None
-        self._repo_url: Optional[str] = None
-        self._repo_commit: Optional[str] = None
+        self._repo_path: Path | None = None
+        self._manifest_path: Path | None = None
+        self._repo_url: str | None = None
+        self._repo_commit: str | None = None
 
         # XCore / OSparc specific attributes
-        self._main_group: Optional[XCoreModeling.EntityGroup] = (
+        self._main_group: XCoreModeling.EntityGroup | None = (
             None  # XCoreModeling.EntityGroup when available
         )
         self._loaded_groups: list[
@@ -114,13 +114,13 @@ class OSparcPlugin(HornetFlowPlugin):
         """Plugin name for CLI selection."""
         return self._name
 
-    def setup(
+    async def setup(
         self,
         repo_path: Path,
         manifest_path: Path,
         logger: logging.Logger,
-        repo_url: Optional[str] = None,
-        repo_commit: Optional[str] = None,
+        repo_url: str | None = None,
+        repo_commit: str | None = None,
     ) -> None:
         """Initialize OSparc plugin."""
         self._logger = logger
@@ -143,11 +143,11 @@ class OSparcPlugin(HornetFlowPlugin):
             )
         )
 
-    def load_component(
+    async def load_component(
         self,
         component_id: str,
         component_type: str,
-        component_description: Optional[str],
+        component_description: str | None,
         component_files: list[Path],  # these are verified paths!!
         component_parent_path: list[str],
     ) -> bool:
@@ -236,7 +236,7 @@ class OSparcPlugin(HornetFlowPlugin):
             self._logger.exception("Failed to load component %s: %s", component_id, e)
             return False
 
-    def teardown(self) -> None:
+    async def teardown(self) -> None:
         """Clean up OSparc resources."""
         self._logger.info("Loaded %d groups", len(self._loaded_groups))
         self._stack.close()

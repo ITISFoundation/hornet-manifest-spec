@@ -22,6 +22,7 @@ venv: check-deps ## Creates virtual env in .venv
 	@if [ ! -d ".venv" ]; then \
 		uv venv; \
 		echo "✓ Virtual environment created at .venv"; \
+		uv pip install pre-commit && pre-commit install; \
 	else \
 		echo "✓ Virtual environment already exists"; \
 	fi

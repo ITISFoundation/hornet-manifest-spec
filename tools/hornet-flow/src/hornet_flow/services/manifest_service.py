@@ -2,6 +2,8 @@
 
 This module provides functionality for working with hornet manifest files including
 finding, validating, reading, and processing manifest contents.
+
+All I/O functions are async-first.
 """
 
 import asyncio
@@ -10,21 +12,23 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import httpx
 import jsonschema
 
 from ..model import Component, File
 
 
-def _load_manifest_data(manifest_file: Path) -> dict[str, Any]:
+async def _load_manifest_data(manifest_file: Path) -> dict[str, Any]:
     """Load manifest data from file.
 
     Raises:
         json.JSONDecodeError: If file is not valid JSON
         FileNotFoundError: If file does not exist
     """
-    with manifest_file.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    async with aiofiles.open(manifest_file, "r", encoding="utf-8") as f:
+        content = await f.read()
+        return json.loads(content)
 
 
 def _extract_schema_url(manifest_data: dict[str, Any], manifest_file: Path) -> str:
@@ -50,31 +54,39 @@ def _validate_against_schema(
     jsonschema.validate(manifest_data, schema)
 
 
-def find_hornet_manifests(repo_path: Path | str) -> tuple[Path | None, Path | None]:
-    """Look for .hornet/cad_manifest.json and .hornet/sim_manifest.json."""
+async def find_hornet_manifests(
+    repo_path: Path | str,
+) -> tuple[Path | None, Path | None]:
+    """Look for .hornet/cad_manifest.json and .hornet/sim_manifest.json.
+
+    Uses asyncio.to_thread for file system operations to avoid blocking.
+    """
+
+    def _find_sync(repo_dir: Path) -> tuple[Path | None, Path | None]:
+        cad_manifest: Path | None = None
+        sim_manifest: Path | None = None
+
+        def _check(target: Path):
+            if target.exists() and target.is_file():
+                return target
+            return None
+
+        # First check .hornet/ directory otherwise then look in repo root
+        hornet_dir = repo_dir / ".hornet"
+        if hornet_dir.exists():
+            cad_manifest = _check(hornet_dir / "cad_manifest.json")
+            sim_manifest = _check(hornet_dir / "sim_manifest.json")
+        else:
+            cad_manifest = _check(repo_dir / "cad_manifest.json")
+            sim_manifest = _check(repo_dir / "sim_manifest.json")
+
+        return cad_manifest, sim_manifest
+
     repo_dir = Path(repo_path)
-
-    cad_manifest: Path | None = None
-    sim_manifest: Path | None = None
-
-    def _check(target: Path):
-        if target.exists() and target.is_file():
-            return target
-        return None
-
-    # First check .hornet/ directory otherwise then look in repo root
-    hornet_dir = repo_dir / ".hornet"
-    if hornet_dir.exists():
-        cad_manifest = _check(hornet_dir / "cad_manifest.json")
-        sim_manifest = _check(hornet_dir / "sim_manifest.json")
-    else:
-        cad_manifest = _check(repo_dir / "cad_manifest.json")
-        sim_manifest = _check(repo_dir / "sim_manifest.json")
-
-    return cad_manifest, sim_manifest
+    return await asyncio.to_thread(_find_sync, repo_dir)
 
 
-def validate_manifest_schema(manifest_file: Path):
+async def validate_manifest_schema(manifest_file: Path):
     """Extract $schema URL from manifest file and validate using jsonschema.
 
     Raises:
@@ -82,28 +94,7 @@ def validate_manifest_schema(manifest_file: Path):
         httpx.HTTPError: If schema download fails
         jsonschema.ValidationError: If manifest is invalid
     """
-    manifest_data = _load_manifest_data(manifest_file)
-    schema_url = _extract_schema_url(manifest_data, manifest_file)
-
-    # Download schema
-    response = httpx.get(schema_url)
-    response.raise_for_status()
-    schema = response.json()
-
-    # Validate manifest against schema
-    _validate_against_schema(manifest_data, schema)
-
-
-async def validate_manifest_schema_async(manifest_file: Path):
-    """Extract $schema URL from manifest file and validate using jsonschema (async version).
-
-    Raises:
-        FileNotFoundError: If no $schema field found
-        httpx.HTTPError: If schema download fails
-        jsonschema.ValidationError: If manifest is invalid
-    """
-    # Load manifest in thread pool to avoid blocking
-    manifest_data = await asyncio.to_thread(_load_manifest_data, manifest_file)
+    manifest_data = await _load_manifest_data(manifest_file)
     schema_url = _extract_schema_url(manifest_data, manifest_file)
 
     # Download schema asynchronously
@@ -116,10 +107,11 @@ async def validate_manifest_schema_async(manifest_file: Path):
     await asyncio.to_thread(_validate_against_schema, manifest_data, schema)
 
 
-def read_manifest_contents(manifest: Path) -> dict[str, Any]:
+async def read_manifest_contents(manifest: Path) -> dict[str, Any]:
     """Read and return the JSON contents of a manifest file."""
-    with manifest.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    async with aiofiles.open(manifest, "r", encoding="utf-8") as f:
+        content = await f.read()
+        return json.loads(content)
 
 
 def walk_manifest_components(
